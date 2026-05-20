@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -22,7 +23,7 @@
   --sidebar:220px;
 }
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;font-size:14px}
-.screen{display:none!important}.screen.active{display:flex!important}
+.screen{display:none}.screen.active{display:flex}
 .page{display:none}.page.active{display:block}
 
 /* ========= LOGIN ========= */
@@ -218,7 +219,7 @@ tr:hover td{background:var(--bg3)}
 <!-- ============================================================ -->
 <!-- LOGIN                                                        -->
 <!-- ============================================================ -->
-<div class="screen active" id="screen-login" style="display:flex!important">
+<div class="screen active" id="screen-login" style="display:flex">
   <div class="login-box">
     <div class="login-logo-wrap">
       <div class="login-logo-slot">LOGO DA EMPRESA</div>
@@ -347,41 +348,56 @@ async function doLogin() {
   const btn   = document.getElementById('btn-login');
   if(!email||!pass){err.textContent='Preencha e-mail e senha.';return;}
   btn.disabled=true; btn.textContent='Entrando...'; err.textContent='';
-  const data = await supaAuth('token?grant_type=password',{email,password:pass});
-  if(!data.access_token){
-    err.textContent='E-mail ou senha incorretos.';
-    btn.disabled=false; btn.textContent='Entrar'; return;
-  }
-  currentToken = data.access_token;
-  currentUser  = data.user;
-  isAdmin      = email.toLowerCase()===ADMIN_EMAIL.toLowerCase();
-  // Para supervisores: buscar operação do perfil
-  if(!isAdmin){
-    const pr = await supaReq('/rest/v1/profiles?id=eq.'+currentUser.id);
-    if(pr.ok){
-      const profiles = await pr.json();
-      userOp = profiles[0]?.operacao || ALL_OPS[0];
+  try {
+    const data = await supaAuth('token?grant_type=password',{email,password:pass});
+    if(!data.access_token){
+      err.textContent = data.error_description || data.msg || 'E-mail ou senha incorretos.';
+      btn.disabled=false; btn.textContent='Entrar'; return;
     }
+    currentToken = data.access_token;
+    currentUser  = data.user;
+    isAdmin      = email.toLowerCase()===ADMIN_EMAIL.toLowerCase();
+    if(!isAdmin){
+      try {
+        const pr = await supaReq('/rest/v1/profiles?id=eq.'+currentUser.id);
+        if(pr.ok){
+          const profiles = await pr.json();
+          userOp = profiles[0]?.operacao || ALL_OPS[0];
+        }
+      } catch(e) { userOp = ALL_OPS[0]; }
+    }
+    btn.disabled=false; btn.textContent='Entrar';
+    const loginEl  = document.getElementById('screen-login');
+    const appEl    = document.getElementById('screen-app');
+    loginEl.style.display  = 'none';
+    loginEl.classList.remove('active');
+    appEl.style.display    = 'flex';
+    appEl.classList.add('active');
+    document.getElementById('sb-user-name').textContent = email.split('@')[0];
+    document.getElementById('sb-user-role').textContent = isAdmin ? 'Administrador' : 'Supervisor — '+userOp;
+    const chip = document.getElementById('topbar-chip');
+    if(isAdmin){chip.className='admin-chip';chip.textContent='ADMIN';}
+    else{chip.className='op-chip';chip.textContent=userOp;}
+    buildSidebar();
+    await loadSnapshots();
+    navigateTo(isAdmin ? 'admin-home' : 'sup-home');
+  } catch(e) {
+    err.textContent = 'Erro de conexão. Verifique sua internet e tente novamente.';
+    btn.disabled=false; btn.textContent='Entrar';
+    console.error('Login error:', e);
   }
-  btn.disabled=false; btn.textContent='Entrar';
-  document.getElementById('screen-login').classList.remove('active');
-  document.getElementById('screen-app').classList.add('active');
-  document.getElementById('sb-user-name').textContent = email.split('@')[0];
-  document.getElementById('sb-user-role').textContent = isAdmin ? 'Administrador' : 'Supervisor — '+userOp;
-  const chip = document.getElementById('topbar-chip');
-  if(isAdmin){chip.className='admin-chip';chip.textContent='ADMIN';}
-  else{chip.className='op-chip';chip.textContent=userOp;}
-  buildSidebar();
-  await loadSnapshots();
-  navigateTo(isAdmin ? 'admin-home' : 'sup-home');
 }
 
 async function doLogout() {
-  await supaReq('/auth/v1/logout',{method:'POST'});
+  try { await supaReq('/auth/v1/logout',{method:'POST'}); } catch(e) {}
   currentUser=null; currentToken=null; isAdmin=false; userOp=null;
   csvData=[]; xlsxData=[]; snapshots=[];
-  document.getElementById('screen-app').classList.remove('active');
-  document.getElementById('screen-login').classList.add('active');
+  const appEl   = document.getElementById('screen-app');
+  const loginEl = document.getElementById('screen-login');
+  appEl.style.display   = 'none';
+  appEl.classList.remove('active');
+  loginEl.style.display = 'flex';
+  loginEl.classList.add('active');
   document.getElementById('login-pass').value='';
   document.getElementById('login-err').textContent='';
 }

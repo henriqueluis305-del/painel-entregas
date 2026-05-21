@@ -1,0 +1,682 @@
+[
+  {
+    "data": "21/05/2026",
+    "hora": "02:10",
+    "ts": "2026-05-21T05:10:33.530Z",
+    "sla_pct": 97.14,
+    "ds_pct": 78.13,
+    "total": 4957,
+    "entregues": 4815,
+    "em_rota": 48,
+    "ocorrencias": 0,
+    "faltantes": 16,
+    "devolvidos": 0,
+    "motoristas": [
+      {
+        "driver": "[106271] Leonardo Rodrigues Azevedo de carvalho",
+        "saiu": 113,
+        "entregues": 113,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[106273] Jose do Carmo dos Santos",
+        "saiu": 134,
+        "entregues": 133,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[144822] BARBARA PINHEIRO DAMASCENO",
+        "saiu": 133,
+        "entregues": 132,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[148425] MANOEL JOSE DOS SANTOS",
+        "saiu": 90,
+        "entregues": 86,
+        "emRota": 0,
+        "ocorrencias": 4
+      },
+      {
+        "driver": "[177725] THIAGO TODELO KAUFMAN",
+        "saiu": 133,
+        "entregues": 133,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[198334] WALLACE DE ANDRADE RODRIGUES",
+        "saiu": 118,
+        "entregues": 117,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[211282] ANDERSON DE MARTINS FERNANDES",
+        "saiu": 157,
+        "entregues": 157,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[222559] MATHEUS SANTOS DOS REMEDIOS",
+        "saiu": 105,
+        "entregues": 104,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[228740] FERNANDO RIBEIRO NETO",
+        "saiu": 136,
+        "entregues": 135,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[245642] Fabiano Garcez Goncalves",
+        "saiu": 107,
+        "entregues": 106,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[246846] RODRIGO PACHECO DE CARVALHO",
+        "saiu": 80,
+        "entregues": 79,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[249450] PEDRO EVANGELISTA FILHO",
+        "saiu": 132,
+        "entregues": 132,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[253690] DIOGO LOPES GRIPP",
+        "saiu": 114,
+        "entregues": 113,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[253984] BRENO RETAMIRO BAR",
+        "saiu": 121,
+        "entregues": 120,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[258243] DAIANA VILLAS BOAS",
+        "saiu": 83,
+        "entregues": 83,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[298340] ALEX SOUSA DA CONCEICAO",
+        "saiu": 132,
+        "entregues": 132,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[311381] FELIPE DIAS NUNES",
+        "saiu": 109,
+        "entregues": 106,
+        "emRota": 0,
+        "ocorrencias": 3
+      },
+      {
+        "driver": "[407767] CAMILA OLIVEIRA DA COSTA",
+        "saiu": 70,
+        "entregues": 69,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[556763] RODRIGO COELHO DOS SANTOS",
+        "saiu": 144,
+        "entregues": 143,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[563742] JHONATA MARIANO CALDAS",
+        "saiu": 125,
+        "entregues": 125,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[695856] joao henrique de oliveira sousa",
+        "saiu": 106,
+        "entregues": 106,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2037682] EMILI PAIVA ESTEVES ALVES",
+        "saiu": 66,
+        "entregues": 66,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2120716] LUCAS SANTOS DOS REMEDIOS",
+        "saiu": 70,
+        "entregues": 70,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2184619] ANDRE BEZERRA COSTA",
+        "saiu": 110,
+        "entregues": 110,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2272091] ALEX BALDIN DE MENESES",
+        "saiu": 79,
+        "entregues": 79,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2292183] jonas luiz almeida silva dos santos",
+        "saiu": 102,
+        "entregues": 96,
+        "emRota": 0,
+        "ocorrencias": 6
+      },
+      {
+        "driver": "[2462972] Joao Lucas Rangel de Araujo",
+        "saiu": 60,
+        "entregues": 59,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[2539893] JEFFERSON DA SILVA REIS",
+        "saiu": 101,
+        "entregues": 101,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2644046] MARCOS VINICIUS DOS SANTOS MOREIRA",
+        "saiu": 70,
+        "entregues": 68,
+        "emRota": 0,
+        "ocorrencias": 2
+      },
+      {
+        "driver": "[2706539] ELIEL DE OLIVEIRA MARCELO FARIAS",
+        "saiu": 38,
+        "entregues": 38,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2796113] CARLOS EDUARDO DE SOUZA CUSTÓDIO",
+        "saiu": 105,
+        "entregues": 105,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3046277] NATAN GOMES FERNANDES DE OLIVEIRA",
+        "saiu": 120,
+        "entregues": 120,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3112208] FELIPE PEREIRA DA SILVA LIMA",
+        "saiu": 90,
+        "entregues": 88,
+        "emRota": 0,
+        "ocorrencias": 2
+      },
+      {
+        "driver": "[3236003] DAVI VAN ERPS MESSINA",
+        "saiu": 53,
+        "entregues": 53,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3313769] RUBEM ANTONIO DOS SANTOS SILVA",
+        "saiu": 43,
+        "entregues": 42,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[3399220] adriano de jesus maximiano",
+        "saiu": 27,
+        "entregues": 27,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3409697] LEONARDO GOMES DA SILVA",
+        "saiu": 125,
+        "entregues": 120,
+        "emRota": 0,
+        "ocorrencias": 5
+      },
+      {
+        "driver": "[3452380] RODRIGO CORREA DANTAS",
+        "saiu": 53,
+        "entregues": 52,
+        "emRota": 0,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[3540141] CARLOS MANOEL CONCEIÇÃO ROQUE",
+        "saiu": 33,
+        "entregues": 33,
+        "emRota": 0,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[144782] GERALDO VENCESLAU CARDOSO DA CRUZ JUNIOR",
+        "saiu": 165,
+        "entregues": 163,
+        "emRota": 1,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[458709] EDERSSON FERNANDO DE CASTRO",
+        "saiu": 143,
+        "entregues": 141,
+        "emRota": 1,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[145297] JOAO MARCOS TOLEDO NEVES",
+        "saiu": 136,
+        "entregues": 135,
+        "emRota": 1,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[950362] ALICE DA SILVA LOPES",
+        "saiu": 120,
+        "entregues": 116,
+        "emRota": 1,
+        "ocorrencias": 3
+      },
+      {
+        "driver": "[2492294] Luiz Felipe De Andrade Resende",
+        "saiu": 121,
+        "entregues": 120,
+        "emRota": 1,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[144677] SILAS DE FARIA FELIX JUNIOR",
+        "saiu": 117,
+        "entregues": 115,
+        "emRota": 1,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[183379] LUCAS DOS SANTOS LOPES",
+        "saiu": 108,
+        "entregues": 107,
+        "emRota": 1,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[215555] ROSELI ALVES PEREIRA MONFARDINI",
+        "saiu": 177,
+        "entregues": 175,
+        "emRota": 2,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[259635] ROSANGELA MARIA DOS SANTOS CHAGAS",
+        "saiu": 81,
+        "entregues": 78,
+        "emRota": 1,
+        "ocorrencias": 2
+      },
+      {
+        "driver": "[198337] TATIANE MOURA PLACIDO",
+        "saiu": 76,
+        "entregues": 75,
+        "emRota": 1,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3555964] OSEAS COELHO DOS SANTOS",
+        "saiu": 76,
+        "entregues": 74,
+        "emRota": 1,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[99067] Jose Ricardo Santos de Amorim",
+        "saiu": 102,
+        "entregues": 100,
+        "emRota": 2,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3414819] CLEITON VILELA DE AZEVEDO",
+        "saiu": 100,
+        "entregues": 98,
+        "emRota": 2,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2163000] fabricio chagas teixeira",
+        "saiu": 167,
+        "entregues": 163,
+        "emRota": 4,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[160517] DOUGLAS DO NASCIMENTO",
+        "saiu": 123,
+        "entregues": 116,
+        "emRota": 4,
+        "ocorrencias": 3
+      },
+      {
+        "driver": "[2664999] LUCAS DAMASCENO DE OLIVEIRA SOUZA",
+        "saiu": 123,
+        "entregues": 119,
+        "emRota": 4,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2995726] ELBER CAITANO VIEIRA",
+        "saiu": 88,
+        "entregues": 85,
+        "emRota": 3,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3554726] NATALIA ESTER PITANGA DE SOUZA",
+        "saiu": 86,
+        "entregues": 82,
+        "emRota": 4,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2958316] MARCOS VINICIUS DOS SANTOS VASCONCELLOS",
+        "saiu": 125,
+        "entregues": 114,
+        "emRota": 10,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[3205271] RYAN MATOS DE FREITAS",
+        "saiu": 99,
+        "entregues": 90,
+        "emRota": 9,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[176233] NAIR RAQUEL PEREIRA DA SILVA LIMA",
+        "saiu": 101,
+        "entregues": 89,
+        "emRota": 11,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[224297] ALDO LUCIO FRANCISCO DE SOUZA",
+        "saiu": 136,
+        "entregues": 118,
+        "emRota": 18,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2285780] Marcos Antônio de Souza Ribeiro",
+        "saiu": 116,
+        "entregues": 99,
+        "emRota": 17,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2943108] JUNIOR CEZAR SOUSA DE ALMEIDA",
+        "saiu": 100,
+        "entregues": 84,
+        "emRota": 16,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[1455097] ROBSON NETERIO DOS SANTOS",
+        "saiu": 117,
+        "entregues": 97,
+        "emRota": 20,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[443744] MATHEUS GUILHERME SILVA DE OLIVEIRA",
+        "saiu": 117,
+        "entregues": 94,
+        "emRota": 23,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[601841] CRISTIANE DA FONSECA MAGALHAES",
+        "saiu": 127,
+        "entregues": 100,
+        "emRota": 26,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[206268] VALDEREZ PAULINO DA SILVA",
+        "saiu": 108,
+        "entregues": 84,
+        "emRota": 24,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[212307] NATHAN SILVA CONTIERI SANTOS",
+        "saiu": 218,
+        "entregues": 168,
+        "emRota": 49,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[196656] BRIAM CIZA DE SOUZA",
+        "saiu": 165,
+        "entregues": 121,
+        "emRota": 43,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[230905] GIAN SILVA DA CONCEICAO",
+        "saiu": 176,
+        "entregues": 127,
+        "emRota": 48,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[3410629] ALYSSON ABBOTT CHAVES",
+        "saiu": 79,
+        "entregues": 56,
+        "emRota": 23,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[2862670] iago calazans soares",
+        "saiu": 78,
+        "entregues": 54,
+        "emRota": 24,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3100351] VIVIANI DE ARAUJO LIPORACE",
+        "saiu": 130,
+        "entregues": 87,
+        "emRota": 42,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[3618173] YGOR ARIEL DA SILVA ROSA",
+        "saiu": 71,
+        "entregues": 47,
+        "emRota": 24,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[448105] JONATHAN COUTINHO GOMES ANGELO",
+        "saiu": 69,
+        "entregues": 45,
+        "emRota": 24,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3512538] thawan raposo de mendonca ferreira",
+        "saiu": 87,
+        "entregues": 54,
+        "emRota": 33,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[236970] IARA APARECIDA GARCEZ GONCALVES RIBEIRO NETO",
+        "saiu": 100,
+        "entregues": 62,
+        "emRota": 38,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[153223] RODRIGO HENRIQUE FRANCA BASTOS SOARES",
+        "saiu": 189,
+        "entregues": 112,
+        "emRota": 77,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[176225] DEBORAH ROCHA DO AMARAL",
+        "saiu": 197,
+        "entregues": 111,
+        "emRota": 86,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3134503] VITOR HUGO PEREIRA GONCALVES",
+        "saiu": 105,
+        "entregues": 53,
+        "emRota": 48,
+        "ocorrencias": 4
+      },
+      {
+        "driver": "[402910] JONATAS DE MARTINS FERNANDES",
+        "saiu": 122,
+        "entregues": 66,
+        "emRota": 56,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[1251914] MARCIO FERNANDO DE CARVALHO XAVIER JUNIOR",
+        "saiu": 130,
+        "entregues": 64,
+        "emRota": 66,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3554492] wellington augusto siqueira cabral",
+        "saiu": 111,
+        "entregues": 53,
+        "emRota": 58,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3414865] ALINE DE SOUZA SILVA DE OLIVEIRA",
+        "saiu": 62,
+        "entregues": 29,
+        "emRota": 33,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[183885] JESSICA SILVA DE OLIVEIRA RIBEIRO",
+        "saiu": 106,
+        "entregues": 47,
+        "emRota": 59,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3462825] PEDRO HENRIQUE DA CUNHA ASSIS",
+        "saiu": 90,
+        "entregues": 32,
+        "emRota": 57,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[269044] PAULO CESAR PIRES MADEIRA",
+        "saiu": 262,
+        "entregues": 88,
+        "emRota": 174,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[198332] THIAGO BARBOSA PINHEIRO",
+        "saiu": 146,
+        "entregues": 44,
+        "emRota": 102,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[184208] ALCIDES FERREIRA DA SILVA DE MOURA",
+        "saiu": 94,
+        "entregues": 8,
+        "emRota": 86,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[246940] IRIS ALCANTARA DOS SANTOS",
+        "saiu": 190,
+        "entregues": 10,
+        "emRota": 179,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[3462831] Derivaldo Guedes de Lima",
+        "saiu": 103,
+        "entregues": 3,
+        "emRota": 98,
+        "ocorrencias": 2
+      },
+      {
+        "driver": "[3382344] lucas nogueira",
+        "saiu": 205,
+        "entregues": 8,
+        "emRota": 197,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[316436] LUIZ GUSTAVO BASTOS GABRIEL",
+        "saiu": 169,
+        "entregues": 2,
+        "emRota": 166,
+        "ocorrencias": 1
+      },
+      {
+        "driver": "[182147] ANTONIO CESAR SANTOS DE CARVALHO",
+        "saiu": 169,
+        "entregues": 0,
+        "emRota": 169,
+        "ocorrencias": 0
+      },
+      {
+        "driver": "[335332] brendo ferreira correa",
+        "saiu": 1,
+        "entregues": 0,
+        "emRota": 1,
+        "ocorrencias": 0
+      }
+    ]
+  }
+]

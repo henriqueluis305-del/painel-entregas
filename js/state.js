@@ -1,0 +1,31 @@
+const state = {
+  currentUser:  null,
+  currentToken: null,
+  isAdmin:      false,
+  userOp:       null,
+  userBase:     null,
+  currentOp:    null,
+  currentBase:  null,
+  csvData:      [],
+  xlsxData:     [],
+  logsData:     [],
+  cepCache:     JSON.parse(localStorage.getItem('cep_cache') || '{}'),
+  sortStates:   {},
+  libSel:       null,
+};
+
+Object.defineProperties(window, {
+  currentUser:  { get(){ return state.currentUser;  }, set(v){ state.currentUser=v;  } },
+  currentToken: { get(){ return state.currentToken; }, set(v){ state.currentToken=v; } },
+  isAdmin:      { get(){ return state.isAdmin;      }, set(v){ state.isAdmin=v;      } },
+  userOp:       { get(){ return state.userOp;       }, set(v){ state.userOp=v;       } },
+  userBase:     { get(){ return state.userBase;     }, set(v){ state.userBase=v;     } },
+  currentOp:    { get(){ return state.currentOp;    }, set(v){ state.currentOp=v;    } },
+  currentBase:  { get(){ return state.currentBase;  }, set(v){ state.currentBase=v;  } },
+  csvData:      { get(){ return state.csvData;      }, set(v){ state.csvData=v;      } },
+  xlsxData:     { get(){ return state.xlsxData;     }, set(v){ state.xlsxData=v;     } },
+  logsData:     { get(){ return state.logsData;     }, set(v){ state.logsData=v;     } },
+  cepCache:     { get(){ return state.cepCache;     }, set(v){ state.cepCache=v;     } },
+  sortStates:   { get(){ return state.sortStates;   }, set(v){ state.sortStates=v;   } },
+  libSel:       { get(){ return state.libSel;       }, set(v){ state.libSel=v;       } },
+});

@@ -1,0 +1,7 @@
+{
+  "operacoes/shopee": ["xpt-adr-02", "xpt-ctn-01", "xpt-lrs-01", "xpt-nvc-01", "xpt-sqr-01"],
+  "operacoes/meli":   [],
+  "operacoes/jt":     [],
+  "operacoes/loggi":  [],
+  "operacoes/imile":  []
+}

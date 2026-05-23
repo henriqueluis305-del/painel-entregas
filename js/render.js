@@ -71,6 +71,7 @@ function renderHistoricoFromLogs() {
   }).join('');
 }
 
+
 function updateCharts() {
   const data    = logsData.length ? logsData : [];
   const labels  = data.map(s => `${s.data || ''} ${s.hora || ''}`);

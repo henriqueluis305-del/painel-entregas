@@ -36,31 +36,37 @@ async function doLogin() {
     }
     currentToken = data.access_token;
     currentUser  = data.user;
-    isAdmin      = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-    if (!isAdmin) {
+    const emailIsAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (!emailIsAdmin) {
       try {
         const pr = await supaReq('/rest/v1/profiles?id=eq.' + currentUser.id);
         if (pr.ok) {
           const profiles = await pr.json();
+          userRole = profiles[0]?.role     || 'supervisor';
           userOp   = profiles[0]?.operacao || ALL_OPS[0];
-          userBase = profiles[0]?.base || null;
+          userBase = profiles[0]?.base     || null;
         }
-      } catch { userOp = ALL_OPS[0]; }
+      } catch { userRole = 'supervisor'; userOp = ALL_OPS[0]; }
     }
+    isAdmin  = emailIsAdmin || userRole === 'coordenador';
+    canEdit  = emailIsAdmin;
     btn.disabled = false; btn.textContent = 'Entrar';
     document.getElementById('screen-login').style.display = 'none';
     document.getElementById('screen-login').classList.remove('active');
     document.getElementById('screen-app').style.display  = 'flex';
     document.getElementById('screen-app').classList.add('active');
     document.getElementById('sb-name').textContent = email.split('@')[0];
-    document.getElementById('sb-role').textContent = isAdmin
+    const roleLabel = emailIsAdmin ? 'Administrador' : (ROLE_LABELS[userRole] || 'Supervisor');
+    document.getElementById('sb-role').textContent = emailIsAdmin
       ? 'Administrador'
-      : `Supervisor — ${OP_LABELS[userOp] || userOp}${userBase ? ' / ' + userBase : ''}`;
+      : `${roleLabel} — ${OP_LABELS[userOp] || userOp}${userBase ? ' / ' + userBase : ''}`;
     const chip = document.getElementById('topbar-chip');
-    if (isAdmin) { chip.className = 'admin-chip'; chip.textContent = 'ADMIN'; }
-    else         { chip.className = 'op-chip';    chip.textContent = OP_LABELS[userOp] || userOp; }
+    if (emailIsAdmin)              { chip.className = 'admin-chip'; chip.textContent = 'ADMIN'; }
+    else if (isAdmin)              { chip.className = 'admin-chip'; chip.textContent = 'COORD'; }
+    else                           { chip.className = 'op-chip';    chip.textContent = OP_LABELS[userOp] || userOp; }
     buildSidebar();
-    navigateTo(isAdmin ? 'admin-home' : 'sup-home');
+    const startPage = isAdmin ? 'admin-home' : (ROLE_PAGES[userRole]?.[0] ?? 'sup-home');
+    navigateTo(startPage);
   } catch(e) {
     err.textContent = 'Erro de conexão. Tente novamente.';
     btn.disabled = false; btn.textContent = 'Entrar';
@@ -70,7 +76,7 @@ async function doLogin() {
 
 async function doLogout() {
   try { await supaReq('/auth/v1/logout', { method: 'POST' }); } catch {}
-  currentUser = null; currentToken = null; isAdmin = false; userOp = null; userBase = null;
+  currentUser = null; currentToken = null; isAdmin = false; canEdit = false; userRole = null; userOp = null; userBase = null;
   csvData = []; xlsxData = []; logsData = [];
   document.getElementById('screen-app').style.display  = 'none';
   document.getElementById('screen-app').classList.remove('active');
@@ -79,4 +85,23 @@ async function doLogout() {
   document.getElementById('login-pass').value = '';
   document.getElementById('login-err').textContent = '';
   clearOpLogo();
+}
+
+function autoLoginAdmin() {
+  isAdmin      = true;
+  canEdit      = true;
+  userRole     = null;
+  currentUser  = { id: 'local-admin', email: ADMIN_EMAIL };
+  currentToken = null;
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-app').style.display   = 'flex';
+  document.getElementById('screen-app').classList.add('active');
+  document.getElementById('sb-name').textContent = 'Admin';
+  document.getElementById('sb-role').textContent = 'Administrador';
+  const chip = document.getElementById('topbar-chip');
+  chip.className   = 'admin-chip';
+  chip.textContent = 'ADMIN';
+  buildSidebar();
+  navigateTo('admin-home');
 }

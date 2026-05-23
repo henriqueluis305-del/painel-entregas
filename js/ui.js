@@ -28,7 +28,9 @@ async function loadCompanyLogo() {
 }
 
 async function loadOpLogo(op) {
-  const url = `${GH_RAW}/${op}/painel-entregas/assets/logo.png?t=${Date.now()}`;
+  const url = Storage.isLocal()
+    ? `data/${OPS_DIR}/${op}/logo.png`
+    : `${GH_RAW}/${OPS_DIR}/${op}/logo.png?t=${Date.now()}`;
   const img = document.getElementById('topbar-op-logo');
   if (img) { img.src = url; img.style.display = ''; img.onerror = () => img.style.display = 'none'; }
 }

@@ -1,18 +1,24 @@
 async function loadCSV(event) {
-  const file = event.target.files[0]; if (!file) return;
-  document.getElementById('csvName').textContent   = file.name;
-  document.getElementById('csvStatus').textContent = 'Processando...';
-  const text   = await file.text();
-  const latest = {};
-  text.split('\n').filter(l => l.trim()).slice(1).forEach(row => {
-    const cols = parseCSVRow(row);
-    if (cols.length < 23) return;
-    const codigo = cols[0]?.trim(); if (!codigo) return;
-    latest[codigo] = { codigo, cep: cols[6]?.trim(), tel: cols[12]?.trim(), driver: cols[13]?.trim(), status: cols[22]?.trim() };
-  });
-  csvData = Object.values(latest);
-  document.getElementById('csvStatus').textContent = '✓ ' + csvData.length + ' pacotes';
-  document.getElementById('csvStatus').className   = 'import-ok';
+  const files = Array.from(event.target.files); if (!files.length) return;
+  const nameEl   = document.getElementById('csvName');
+  const statusEl = document.getElementById('csvStatus');
+  nameEl.textContent   = files.length > 1 ? `${files.length} arquivos` : files[0].name;
+  statusEl.textContent = 'Processando...';
+  statusEl.className   = 'import-wait';
+  const merged = {};
+  for (const file of files) {
+    const text = await file.text();
+    text.split('\n').filter(l => l.trim()).slice(1).forEach(row => {
+      const cols = parseCSVRow(row);
+      if (cols.length < 23) return;
+      const codigo = cols[0]?.trim(); if (!codigo) return;
+      merged[codigo] = { codigo, cep: cols[6]?.trim(), tel: cols[12]?.trim(), driver: cols[13]?.trim(), status: cols[22]?.trim() };
+    });
+  }
+  csvData = Object.values(merged);
+  nameEl.textContent   = files.length > 1 ? `${files[0].name} +${files.length - 1}` : files[0].name;
+  statusEl.textContent = '✓ ' + csvData.length + ' pacotes';
+  statusEl.className   = 'import-ok';
   await resolveAllCEPs();
   updateAll();
 }

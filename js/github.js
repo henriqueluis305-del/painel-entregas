@@ -59,15 +59,15 @@ function setGhStatus(ok, msg) {
 
 function logPath(op, base) {
   const safeBase = base.toLowerCase().replace(/[^a-z0-9]/g, '-');
-  return `${op}/${safeBase}/logs.json`;
+  return `${OPS_DIR}/${op}/${safeBase}/logs.json`;
 }
 
 async function loadLogs(op, base) {
   setSaving('Carregando histórico...');
-  const data = await ghGetJSON(logPath(op, base));
+  const data = await Storage.getJSON(logPath(op, base));
   logsData = Array.isArray(data) ? data : [];
   setSaving('');
-  setGhStatus(true, 'GitHub OK');
+  if (!Storage.isLocal()) setGhStatus(true, 'GitHub OK');
   return logsData;
 }
 
@@ -89,11 +89,12 @@ async function saveSnapshot(op, base) {
     motoristas:  xlsxData,
   };
 
-  setSaving('Salvando no GitHub...');
-  setGhStatus(null, 'Salvando...');
-  const existing = await ghGetJSON(logPath(op, base)) || [];
+  const label = Storage.isLocal() ? 'local' : 'GitHub';
+  setSaving(`Salvando (${label})...`);
+  if (!Storage.isLocal()) setGhStatus(null, 'Salvando...');
+  const existing = await Storage.getJSON(logPath(op, base)) || [];
   existing.push(snap);
-  const ok = await ghPut(
+  const ok = await Storage.put(
     logPath(op, base),
     JSON.stringify(existing, null, 2),
     `snapshot ${op}/${base} — ${snap.data} ${snap.hora}`
@@ -101,13 +102,13 @@ async function saveSnapshot(op, base) {
   if (ok) {
     logsData = existing;
     setSaving('');
-    setGhStatus(true, 'Salvo ✓');
+    if (!Storage.isLocal()) setGhStatus(true, 'Salvo ✓');
     showSnack(`Snapshot salvo — SLA: ${s.pct.toFixed(1)}% | DS: ${d.pct.toFixed(1)}%`);
     renderHistoricoFromLogs();
     updateCharts();
   } else {
     setSaving('');
-    setGhStatus(false, 'Erro ao salvar');
-    showSnack('Erro ao salvar no GitHub. Verifique o token.', true);
+    if (!Storage.isLocal()) setGhStatus(false, 'Erro ao salvar');
+    showSnack('Erro ao salvar. Verifique o token.', true);
   }
 }

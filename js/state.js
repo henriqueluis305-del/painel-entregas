@@ -20,6 +20,7 @@ const state = {
   cepCache:         JSON.parse(localStorage.getItem('cep_cache') || '{}'),
   sortStates:       {},
   libSel:           null,
+  baseImportCache:  {},
 };
 
 Object.defineProperties(window, {
@@ -44,4 +45,5 @@ Object.defineProperties(window, {
   cepCache:         { get(){ return state.cepCache;         }, set(v){ state.cepCache=v;         } },
   sortStates:       { get(){ return state.sortStates;       }, set(v){ state.sortStates=v;       } },
   libSel:           { get(){ return state.libSel;           }, set(v){ state.libSel=v;           } },
+  baseImportCache:  { get(){ return state.baseImportCache;  }, set(v){ state.baseImportCache=v;  } },
 });

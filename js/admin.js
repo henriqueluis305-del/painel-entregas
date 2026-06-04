@@ -17,6 +17,9 @@ async function loadBasesForOp(op, selectFn = 'selectBase') {
 
 async function selectBase(op, base, el) {
   currentBase = base;
+  const cached = baseImportCache[op + '/' + base] || {};
+  csvData  = cached.csv  || [];
+  xlsxData = cached.xlsx || [];
   document.querySelectorAll('.base-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   await loadLogs(op, base);

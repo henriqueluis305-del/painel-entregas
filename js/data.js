@@ -16,11 +16,15 @@ async function loadCSV(event) {
     });
   }
   csvData = Object.values(merged);
+  if (currentOp && currentBase) {
+    const key = currentOp + '/' + currentBase;
+    baseImportCache[key] = { ...(baseImportCache[key] || {}), csv: csvData };
+  }
   nameEl.textContent   = files.length > 1 ? `${files[0].name} +${files.length - 1}` : files[0].name;
   statusEl.textContent = '✓ ' + csvData.length + ' pacotes';
   statusEl.className   = 'import-ok';
-  await resolveAllCEPs();
   updateAll();
+  resolveAllCEPs();
 }
 
 async function loadXLSX(event) {
@@ -41,6 +45,10 @@ async function loadXLSX(event) {
       emRota:      Number(r[10]) || 0,
       ocorrencias: Number(r[12]) || 0,
     });
+  }
+  if (currentOp && currentBase) {
+    const key = currentOp + '/' + currentBase;
+    baseImportCache[key] = { ...(baseImportCache[key] || {}), xlsx: xlsxData };
   }
   document.getElementById('xlsxStatus').textContent = '✓ ' + xlsxData.length + ' motoristas';
   document.getElementById('xlsxStatus').className   = 'import-ok';

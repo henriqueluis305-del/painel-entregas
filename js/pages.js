@@ -33,22 +33,35 @@ function slaBlocksHTML() {
     <div class="blocks-row">
       <div class="block">
         <div class="block-title"><span class="block-dot" style="background:var(--blue)"></span>SLA — Nível de Serviço</div>
-        <div class="block-pct" id="g-sla-pct" style="color:var(--blue)">—%</div>
-        <div class="block-sub" id="g-sla-sub">0 pacotes</div>
+        <div style="position:relative;height:130px;margin-bottom:6px">
+          <canvas id="g-sla-chart"></canvas>
+          <div style="position:absolute;bottom:2px;left:0;right:0;text-align:center;pointer-events:none">
+            <div class="block-pct" id="g-sla-pct" style="color:var(--blue);margin:0">—%</div>
+            <div class="block-sub" id="g-sla-sub" style="margin:0">0 pacotes</div>
+          </div>
+        </div>
         <div class="bar-wrap"><div class="bar-fill" id="g-sla-bar" style="background:var(--blue);width:0%"></div></div>
         <div class="mini-grid">
           <div class="mini"><div class="mini-val" style="color:var(--green)" id="g-e">0</div><div class="mini-lbl">Entregues</div></div>
           <div class="mini"><div class="mini-val" style="color:var(--blue)" id="g-r">0</div><div class="mini-lbl">Em Rota</div></div>
           <div class="mini"><div class="mini-val" style="color:var(--red)" id="g-o">0</div><div class="mini-lbl">Ocorrências</div></div>
           <div class="mini"><div class="mini-val" style="color:var(--gray)" id="g-f">0</div><div class="mini-lbl">Faltantes</div></div>
-          <div class="mini"><div class="mini-val" style="color:var(--orange)" id="g-d">0</div><div class="mini-lbl">Devoluções</div></div>
-          <div class="mini"><div class="mini-val" style="color:var(--text2)" id="g-x">0</div><div class="mini-lbl">Outros</div></div>
+          <div class="mini"><div class="mini-val" style="color:var(--orange)" id="g-d">0</div><div class="mini-lbl">Faltam p/ 98%</div></div>
+          <div class="mini" style="cursor:pointer" onclick="showOutrosModal()" title="Ver detalhes">
+            <div class="mini-val" style="color:var(--text2)" id="g-x">0</div>
+            <div class="mini-lbl" style="text-decoration:underline dotted;text-underline-offset:2px">Outros ↗</div>
+          </div>
         </div>
       </div>
       <div class="block">
         <div class="block-title"><span class="block-dot" style="background:var(--green)"></span>DS — Mesmo Dia</div>
-        <div class="block-pct" id="g-ds-pct" style="color:var(--green)">—%</div>
-        <div class="block-sub" id="g-ds-sub">0 motoristas</div>
+        <div style="position:relative;height:130px;margin-bottom:6px">
+          <canvas id="g-ds-chart"></canvas>
+          <div style="position:absolute;bottom:2px;left:0;right:0;text-align:center;pointer-events:none">
+            <div class="block-pct" id="g-ds-pct" style="color:var(--green);margin:0">—%</div>
+            <div class="block-sub" id="g-ds-sub" style="margin:0">0 motoristas</div>
+          </div>
+        </div>
         <div class="bar-wrap"><div class="bar-fill" id="g-ds-bar" style="background:var(--green);width:0%"></div></div>
         <div class="mini-grid">
           <div class="mini"><div class="mini-val" style="color:var(--green)" id="g-ds-e">0</div><div class="mini-lbl">Entregues</div></div>
@@ -59,8 +72,8 @@ function slaBlocksHTML() {
     </div>`;
 }
 
-function chartBoxHTML(id, title) {
-  return `<div class="chart-box"><div class="chart-box-title">${title}</div><div class="chart-h"><canvas id="${id}" role="img" aria-label="${title}">Sem dados.</canvas></div></div>`;
+function chartBoxHTML(id, title, extraStyle = '') {
+  return `<div class="chart-box" style="${extraStyle}"><div class="chart-box-title">${title}</div><div class="chart-h"><canvas id="${id}" role="img" aria-label="${title}">Sem dados.</canvas></div></div>`;
 }
 
 function driverTableHTML(tbodyId, title) {
@@ -299,7 +312,10 @@ function basePanelHTML(op, base) {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:14px;font-weight:600">${OP_LABELS[op]} / <span style="color:var(--blue)">${base.toUpperCase()}</span></div>
-      <button class="btn-primary-sm" onclick="saveSnapshot('${op}','${base}')">📸 Registrar Snapshot</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="gerarPrint()">🖼️ Gerar Print</button>
+        <button class="btn-primary-sm" onclick="saveSnapshot('${op}','${base}')">📸 Registrar Snapshot</button>
+      </div>
     </div>
     <div class="snap-bar" id="snap-bar"></div>
     <div class="import-bar">
@@ -317,7 +333,10 @@ function basePanelHTML(op, base) {
       </div>
     </div>
     ${slaBlocksHTML()}
-    ${chartBoxHTML('chartGeral', 'Evolução SLA e DS — snapshots desta base')}
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${chartBoxHTML('chartGeralSLA', 'Evolução SLA — snapshots desta base', 'flex:1;min-width:220px')}
+      ${chartBoxHTML('chartGeralDS',  'Evolução DS — snapshots desta base',  'flex:1;min-width:220px')}
+    </div>
     ${driverTableHTML('gtbody', 'Motoristas — DS')}
     <div class="chart-box">
       <div class="chart-box-title">Histórico de snapshots — ${base.toUpperCase()}</div>
@@ -350,7 +369,10 @@ function renderHoje() {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px;color:var(--text2)">${OP_LABELS[op] || op} / <strong>${base.toUpperCase()}</strong></div>
-      <button class="btn-primary-sm" onclick="saveSnapshot('${op}','${base}')">📸 Registrar Snapshot</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="gerarPrint()">🖼️ Gerar Print</button>
+        <button class="btn-primary-sm" onclick="saveSnapshot('${op}','${base}')">📸 Registrar Snapshot</button>
+      </div>
     </div>
     <div class="snap-bar" id="snap-bar"></div>
     <div class="import-bar">
@@ -368,13 +390,19 @@ function renderHoje() {
       </div>
     </div>
     ${slaBlocksHTML()}
-    ${chartBoxHTML('chartGeral', 'Evolução SLA e DS — hoje')}
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${chartBoxHTML('chartGeralSLA', 'Evolução SLA — hoje', 'flex:1;min-width:220px')}
+      ${chartBoxHTML('chartGeralDS',  'Evolução DS — hoje',  'flex:1;min-width:220px')}
+    </div>
     ${driverTableHTML('gtbody', 'Motoristas — DS')}`;
 }
 
 function renderHistoricoPage() {
   return `
-    ${chartBoxHTML('chartGeral', 'Evolução SLA e DS')}
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${chartBoxHTML('chartGeralSLA', 'Evolução SLA', 'flex:1;min-width:220px')}
+      ${chartBoxHTML('chartGeralDS',  'Evolução DS',  'flex:1;min-width:220px')}
+    </div>
     <div class="timeline" id="historico-tl"><div class="empty">Carregando histórico do GitHub...</div></div>`;
 }
 

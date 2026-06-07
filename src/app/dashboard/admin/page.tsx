@@ -49,10 +49,10 @@ export default async function Page() {
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">
-            <div className="overflow-hidden rounded-lg border">
+            <div className="bg-card overflow-hidden rounded-xl border shadow-sm">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
                     <TableHead>Nome</TableHead>
                     <TableHead>E-mail</TableHead>
                     <TableHead>Cargo</TableHead>

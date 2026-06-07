@@ -1,3 +1,6 @@
+import { existsSync } from "fs"
+import { join } from "path"
+
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -23,6 +26,13 @@ export default async function Page() {
     getUsers(),
   ])
   const opsLite = operacoes.map((o) => ({ slug: o.slug, label: o.label }))
+  const opsWithLogo = operacoes.map((o) => {
+    const rel = `/operacoes/${o.slug}.png`
+    return {
+      ...o,
+      logo: existsSync(join(process.cwd(), "public", rel)) ? rel : null,
+    }
+  })
 
   return (
     <>
@@ -35,7 +45,7 @@ export default async function Page() {
           </TabsList>
 
           <TabsContent value="ops" className="mt-4">
-            <OperacoesManager operacoes={operacoes} />
+            <OperacoesManager operacoes={opsWithLogo} />
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">

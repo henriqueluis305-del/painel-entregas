@@ -1,7 +1,8 @@
 "use client"
 
 import { useTransition } from "react"
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import Image from "next/image"
+import { PlusIcon, PencilIcon, StoreIcon, Trash2Icon } from "lucide-react"
 
 import {
   createBase,
@@ -21,8 +22,32 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import type { OperacaoWithBases } from "@/lib/queries"
+
+type OperacaoCard = OperacaoWithBases & { logo: string | null }
+
+function OpLogo({ logo, label }: { logo: string | null; label: string }) {
+  if (logo) {
+    return (
+      <span className="size-9 shrink-0 overflow-hidden rounded-md">
+        <Image
+          src={logo}
+          alt={label}
+          width={36}
+          height={36}
+          className="size-full object-cover"
+        />
+      </span>
+    )
+  }
+  return (
+    <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">
+      <StoreIcon className="size-4" />
+    </span>
+  )
+}
 
 function ActionSwitch({
   checked,
@@ -52,7 +77,7 @@ const iconBtn = (icon: React.ReactNode) => (
 export function OperacoesManager({
   operacoes,
 }: {
-  operacoes: OperacaoWithBases[]
+  operacoes: OperacaoCard[]
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -83,9 +108,14 @@ export function OperacoesManager({
           <Card key={op.id} className="gap-3">
             <CardHeader className="gap-0">
               <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="font-semibold">{op.label}</span>
-                  <span className="text-muted-foreground text-xs">{op.slug}</span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <OpLogo logo={op.logo} label={op.label} />
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate font-semibold">{op.label}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {op.slug}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <Badge variant="secondary">{op.bases.length} bases</Badge>
@@ -107,6 +137,7 @@ export function OperacoesManager({
                 </div>
               </div>
             </CardHeader>
+            <Separator />
             <CardContent className="flex flex-col gap-3">
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <span className="text-sm">Na sidebar (padrão)</span>

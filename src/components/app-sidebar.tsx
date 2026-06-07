@@ -85,6 +85,26 @@ function NavGroup({
   )
 }
 
+function OpIcon({ logo, label }: { logo: string | null; label: string }) {
+  // Container consistente (design system): caixa arredondada com a logo dentro,
+  // ou o ícone de loja como fallback.
+  return (
+    <span className="bg-sidebar-accent ring-sidebar-border flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] ring-1">
+      {logo ? (
+        <Image
+          src={logo}
+          alt={label}
+          width={20}
+          height={20}
+          className="size-full object-contain p-[3px]"
+        />
+      ) : (
+        <StoreIcon className="size-3" />
+      )}
+    </span>
+  )
+}
+
 export function AppSidebar({
   user,
   perms,
@@ -93,7 +113,7 @@ export function AppSidebar({
 }: {
   user: { name: string; email: string; role: string }
   perms: string[]
-  operacoes: { slug: string; label: string }[]
+  operacoes: { slug: string; label: string; logo: string | null }[]
 } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const visible = NAV.filter((i) => i.perm === null || perms.includes(i.perm))
@@ -104,11 +124,6 @@ export function AppSidebar({
   const gestao = visible
     .filter((i) => i.group === "Gestão")
     .map((i) => ({ title: i.title, url: i.url, icon: i.icon }))
-  const ops = operacoes.map((o) => ({
-    title: o.label,
-    url: `/dashboard/operacao/${o.slug}`,
-    icon: StoreIcon,
-  }))
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -139,7 +154,28 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavGroup label="Plataforma" items={plataforma} pathname={pathname} />
-        <NavGroup label="Operações" items={ops} pathname={pathname} />
+        {operacoes.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Operações</SidebarGroupLabel>
+            <SidebarMenu>
+              {operacoes.map((o) => {
+                const url = `/dashboard/operacao/${o.slug}`
+                return (
+                  <SidebarMenuItem key={o.slug}>
+                    <SidebarMenuButton
+                      tooltip={o.label}
+                      isActive={pathname.startsWith(url)}
+                      render={<Link href={url} />}
+                    >
+                      <OpIcon logo={o.logo} label={o.label} />
+                      <span>{o.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
         <NavGroup label="Gestão" items={gestao} pathname={pathname} />
       </SidebarContent>
       <SidebarFooter>

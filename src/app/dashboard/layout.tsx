@@ -1,3 +1,6 @@
+import { existsSync } from "fs"
+import { join } from "path"
+
 import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -31,7 +34,11 @@ export default async function DashboardLayout({
   const userSet = profile?.sidebar_operacoes ?? null
   const operacoes = accessible
     .filter((o) => (userSet ? userSet.includes(o.slug) : o.in_sidebar))
-    .map((o) => ({ slug: o.slug, label: o.label }))
+    .map((o) => {
+      const rel = `/operacoes/${o.slug}.png`
+      const logo = existsSync(join(process.cwd(), "public", rel)) ? rel : null
+      return { slug: o.slug, label: o.label, logo }
+    })
 
   return (
     <SidebarProvider

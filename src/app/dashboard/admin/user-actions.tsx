@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Loader2Icon, PencilIcon, Trash2Icon, UserCheckIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  PencilIcon,
+  Trash2Icon,
+  UserCheckIcon,
+  UserMinusIcon,
+} from "lucide-react"
 
 import {
   deleteUser,
@@ -21,15 +27,19 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ROLE_LABEL, type Role } from "@/lib/permissions"
 import type { UserRow } from "@/lib/queries"
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[]
 const SCOPES = ["SINGLE", "OP_WIDE", "ALL"]
-
-const selectCls =
-  "border-input bg-transparent h-9 w-full rounded-md border px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
 
 function EditDialog({
   user,
@@ -109,31 +119,33 @@ function EditDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label>Cargo</Label>
-              <select
-                className={selectCls}
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
+              <Select value={role} onValueChange={(v) => v && setRole(v as Role)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label>Escopo</Label>
-              <select
-                className={selectCls}
-                value={scope}
-                onChange={(e) => setScope(e.target.value)}
-              >
-                {SCOPES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <Select value={scope} onValueChange={(v) => v && setScope(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCOPES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -216,7 +228,7 @@ export function UserActions({
         <ConfirmDialog
           trigger={
             <Button variant="ghost" size="icon" className="size-7" title="Inativar">
-              <Trash2Icon className="size-3.5" />
+              <UserMinusIcon className="size-3.5" />
             </Button>
           }
           title={`Inativar ${user.empresa ?? user.email}?`}
@@ -225,25 +237,27 @@ export function UserActions({
           onConfirm={() => setUserActive(user.id, false)}
         />
       ) : (
-        <ReactivateButton id={user.id} />
+        <>
+          <ReactivateButton id={user.id} />
+          <ConfirmDialog
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive size-7"
+                title="Excluir definitivamente"
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
+            }
+            title={`Excluir ${user.empresa ?? user.email} definitivamente?`}
+            description="Remove o usuário do sistema e da autenticação. Ação irreversível."
+            confirmLabel="Excluir definitivamente"
+            destructive
+            onConfirm={() => deleteUser(user.id)}
+          />
+        </>
       )}
-      <ConfirmDialog
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive size-7"
-            title="Excluir definitivamente"
-          >
-            <Trash2Icon className="size-3.5" />
-          </Button>
-        }
-        title={`Excluir ${user.empresa ?? user.email} definitivamente?`}
-        description="Remove o usuário do sistema e da autenticação. Ação irreversível."
-        confirmLabel="Excluir definitivamente"
-        destructive
-        onConfirm={() => deleteUser(user.id)}
-      />
     </div>
   )
 }

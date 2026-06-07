@@ -1,13 +1,27 @@
+import { redirect } from "next/navigation"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { getSessionProfile } from "@/lib/auth"
+import { resolvePerms, ROLE_LABEL } from "@/lib/permissions"
 
 import data from "./data.json"
 
-export default function Page() {
+export default async function Page() {
+  const session = await getSessionProfile()
+  if (!session) redirect("/login")
+  const { email, profile } = session
+  const perms = profile ? resolvePerms(profile) : []
+  const user = {
+    name: profile?.empresa || email,
+    email,
+    role: profile ? (ROLE_LABEL[profile.role] ?? profile.role) : "—",
+  }
+
   return (
     <SidebarProvider
       style={
@@ -17,7 +31,7 @@ export default function Page() {
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" />
+      <AppSidebar variant="inset" user={user} perms={perms} />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">

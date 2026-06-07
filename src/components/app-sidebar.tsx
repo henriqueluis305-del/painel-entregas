@@ -86,21 +86,23 @@ function NavGroup({
 }
 
 function OpIcon({ logo, label }: { logo: string | null; label: string }) {
-  // Container consistente (design system): caixa arredondada com a logo dentro,
-  // ou o ícone de loja como fallback.
-  return (
-    <span className="bg-sidebar-accent ring-sidebar-border flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] ring-1">
-      {logo ? (
+  // Logo preenche a caixa; cantos internos arredondados iguais aos externos.
+  if (logo) {
+    return (
+      <span className="flex size-5 shrink-0 overflow-hidden rounded-md">
         <Image
           src={logo}
           alt={label}
           width={20}
           height={20}
-          className="size-full object-contain p-[3px]"
+          className="size-full object-cover"
         />
-      ) : (
-        <StoreIcon className="size-3" />
-      )}
+      </span>
+    )
+  }
+  return (
+    <span className="bg-sidebar-accent flex size-5 shrink-0 items-center justify-center rounded-md">
+      <StoreIcon className="size-3" />
     </span>
   )
 }

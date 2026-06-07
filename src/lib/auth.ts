@@ -1,7 +1,8 @@
+import { redirect } from "next/navigation"
 import { createClient as createAdmin } from "@supabase/supabase-js"
 
 import { createClient } from "@/lib/supabase/server"
-import type { Role } from "@/lib/permissions"
+import { hasPerm, type Permission, type Role } from "@/lib/permissions"
 
 export type Profile = {
   id: string
@@ -40,4 +41,12 @@ export async function getSessionProfile(): Promise<{
     .single<Profile>()
 
   return { email: user.email ?? "", profile: profile ?? null }
+}
+
+/** Garante sessão + permissão. Redireciona se faltar. Retorna a sessão. */
+export async function requirePerm(perm: Permission) {
+  const session = await getSessionProfile()
+  if (!session) redirect("/login")
+  if (!session.profile || !hasPerm(session.profile, perm)) redirect("/dashboard")
+  return session
 }

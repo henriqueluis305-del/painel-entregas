@@ -7,6 +7,7 @@ PLANO-MIGRACAO-PYTHON.md.
 """
 
 import reflex as rx
+import painel.models  # noqa: F401 — garante que Alembic detecta todos os models
 
 
 def feature(icon: str, titulo: str, desc: str) -> rx.Component:

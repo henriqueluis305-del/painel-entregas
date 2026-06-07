@@ -1,14 +1,31 @@
-assets/external/
-.web
-.states
-*.py[cod]
-*.db
-config.js
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
 
-# Python / Reflex
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files (segredos — NUNCA commitar)
 .env
-.venv/
-__pycache__/
-*.pyc
-.web/
-.states/
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# vercel
+.vercel

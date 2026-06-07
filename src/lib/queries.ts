@@ -39,6 +39,22 @@ export async function getOperacoesWithBases(): Promise<OperacaoWithBases[]> {
   }))
 }
 
+export async function getDashboardStats() {
+  const sb = createAdminClient()
+  const [ops, bases, users, sla] = await Promise.all([
+    sb.from("operacao").select("*", { count: "exact", head: true }),
+    sb.from("base").select("*", { count: "exact", head: true }),
+    sb.from("app_user").select("*", { count: "exact", head: true }),
+    sb.from("sla_ds_record").select("*", { count: "exact", head: true }),
+  ])
+  return {
+    operacoes: ops.count ?? 0,
+    bases: bases.count ?? 0,
+    usuarios: users.count ?? 0,
+    slaDs: sla.count ?? 0,
+  }
+}
+
 export async function getUsers(): Promise<UserRow[]> {
   const sb = createAdminClient()
   const { data } = await sb

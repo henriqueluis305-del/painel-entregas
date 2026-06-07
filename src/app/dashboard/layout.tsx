@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getSessionProfile } from "@/lib/auth"
 import { resolvePerms, ROLE_LABEL } from "@/lib/permissions"
+import { getOperacoesWithBases } from "@/lib/queries"
 
 export default async function DashboardLayout({
   children,
@@ -20,6 +21,14 @@ export default async function DashboardLayout({
     role: profile ? (ROLE_LABEL[profile.role] ?? profile.role) : "—",
   }
 
+  // Operações visíveis conforme escopo do usuário
+  const allOps = await getOperacoesWithBases()
+  const canSeeAll =
+    !profile || profile.is_admin || profile.base_scope === "ALL"
+  const operacoes = (
+    canSeeAll ? allOps : allOps.filter((o) => o.id === profile.operacao_id)
+  ).map((o) => ({ slug: o.slug, label: o.label }))
+
   return (
     <SidebarProvider
       style={
@@ -29,7 +38,12 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" user={user} perms={perms} />
+      <AppSidebar
+        variant="inset"
+        user={user}
+        perms={perms}
+        operacoes={operacoes}
+      />
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   )

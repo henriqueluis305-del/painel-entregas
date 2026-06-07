@@ -55,6 +55,22 @@ export async function getDashboardStats() {
   }
 }
 
+export async function getOperacaoBySlug(slug: string) {
+  const sb = createAdminClient()
+  const { data: op } = await sb
+    .from("operacao")
+    .select("id, slug, label")
+    .eq("slug", slug)
+    .single<Operacao>()
+  if (!op) return null
+  const { data: bases } = await sb
+    .from("base")
+    .select("id, operacao_id, slug, label, active")
+    .eq("operacao_id", op.id)
+    .order("slug")
+  return { ...op, bases: (bases as Base[]) ?? [] }
+}
+
 export async function getUsers(): Promise<UserRow[]> {
   const sb = createAdminClient()
   const { data } = await sb

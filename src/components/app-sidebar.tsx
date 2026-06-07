@@ -26,6 +26,7 @@ import {
   ChartSplineIcon,
   CircleCheckBigIcon,
   ShieldIcon,
+  StoreIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -47,17 +48,67 @@ const NAV: NavItem[] = [
   { title: "Administração", url: "/dashboard/admin", icon: ShieldIcon, perm: PERMS.MANAGE_USERS, group: "Gestão" },
 ]
 
+function NavGroup({
+  label,
+  items,
+  pathname,
+}: {
+  label: string
+  items: { title: string; url: string; icon: LucideIcon }[]
+  pathname: string
+}) {
+  if (items.length === 0) return null
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarMenu>
+        {items.map((item) => {
+          const active =
+            item.url === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(item.url)
+          return (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton
+                tooltip={item.title}
+                isActive={active}
+                render={<Link href={item.url} />}
+              >
+                <item.icon />
+                <span>{item.title}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )
+        })}
+      </SidebarMenu>
+    </SidebarGroup>
+  )
+}
+
 export function AppSidebar({
   user,
   perms,
+  operacoes,
   ...props
 }: {
   user: { name: string; email: string; role: string }
   perms: string[]
+  operacoes: { slug: string; label: string }[]
 } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const visible = NAV.filter((i) => i.perm === null || perms.includes(i.perm))
-  const groups: NavItem["group"][] = ["Plataforma", "Gestão"]
+
+  const plataforma = visible
+    .filter((i) => i.group === "Plataforma")
+    .map((i) => ({ title: i.title, url: i.url, icon: i.icon }))
+  const gestao = visible
+    .filter((i) => i.group === "Gestão")
+    .map((i) => ({ title: i.title, url: i.url, icon: i.icon }))
+  const ops = operacoes.map((o) => ({
+    title: o.label,
+    url: `/dashboard/operacao/${o.slug}`,
+    icon: StoreIcon,
+  }))
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -76,35 +127,9 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {groups.map((g) => {
-          const items = visible.filter((i) => i.group === g)
-          if (items.length === 0) return null
-          return (
-            <SidebarGroup key={g}>
-              <SidebarGroupLabel>{g}</SidebarGroupLabel>
-              <SidebarMenu>
-                {items.map((item) => {
-                  const active =
-                    item.url === "/dashboard"
-                      ? pathname === "/dashboard"
-                      : pathname.startsWith(item.url)
-                  return (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton
-                        tooltip={item.title}
-                        isActive={active}
-                        render={<Link href={item.url} />}
-                      >
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </SidebarGroup>
-          )
-        })}
+        <NavGroup label="Plataforma" items={plataforma} pathname={pathname} />
+        <NavGroup label="Operações" items={ops} pathname={pathname} />
+        <NavGroup label="Gestão" items={gestao} pathname={pathname} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

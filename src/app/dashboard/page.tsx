@@ -23,6 +23,18 @@ export default async function Page() {
   ])
   const nome = session?.profile?.empresa || session?.email || ""
 
+  // Mesma resolução da sidebar: operações liberadas (in_sidebar/override) ∩ escopo,
+  // e dentro de cada uma só as bases ativas (liberadas).
+  const profile = session?.profile ?? null
+  const canSeeAll = !profile || profile.is_admin || profile.base_scope === "ALL"
+  const userSet = profile?.sidebar_operacoes ?? null
+  const visibleOps = ops
+    .filter((o) => (canSeeAll ? true : o.id === profile?.operacao_id))
+    .filter((o) => (userSet ? userSet.includes(o.slug) : o.in_sidebar))
+    .map((o) => ({ ...o, bases: o.bases.filter((b) => b.active) }))
+
+  const totalBasesVisiveis = visibleOps.reduce((s, o) => s + o.bases.length, 0)
+
   return (
     <>
       <SiteHeader title="Início" />
@@ -35,8 +47,8 @@ export default async function Page() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard icon={Building2Icon} label="Operações" value={stats.operacoes} color="#6366f1" />
-          <KpiCard icon={BoxesIcon} label="Bases" value={stats.bases} color="#0ea5e9" />
+          <KpiCard icon={Building2Icon} label="Operações" value={visibleOps.length} color="#6366f1" />
+          <KpiCard icon={BoxesIcon} label="Bases" value={totalBasesVisiveis} color="#0ea5e9" />
           <KpiCard icon={UsersIcon} label="Usuários" value={stats.usuarios} color="#ec4899" />
           <KpiCard icon={LineChartIcon} label="Registros SLA/DS" value={stats.slaDs} color="#f59e0b" />
         </div>
@@ -66,8 +78,17 @@ export default async function Page() {
             <CardTitle>Operações &amp; bases</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {ops.map((op) => (
-              <div key={op.id} className="rounded-lg border p-3">
+            {visibleOps.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                Nenhuma operação liberada para exibição.
+              </p>
+            )}
+            {visibleOps.map((op) => (
+              <Link
+                key={op.id}
+                href={`/dashboard/operacao/${op.slug}`}
+                className="hover:border-primary/50 hover:bg-accent/40 rounded-lg border p-3 transition-colors"
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{op.label}</span>
                   <Badge variant="secondary">{op.bases.length}</Badge>
@@ -80,10 +101,12 @@ export default async function Page() {
                       </Badge>
                     ))
                   ) : (
-                    <span className="text-muted-foreground text-xs">sem bases</span>
+                    <span className="text-muted-foreground text-xs">
+                      sem bases ativas
+                    </span>
                   )}
                 </div>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

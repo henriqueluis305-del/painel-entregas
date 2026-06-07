@@ -1,6 +1,9 @@
 import { existsSync } from "fs"
 import { join } from "path"
 
+import Image from "next/image"
+import { StoreIcon } from "lucide-react"
+
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -33,6 +36,10 @@ export default async function Page() {
       logo: existsSync(join(process.cwd(), "public", rel)) ? rel : null,
     }
   })
+  const bySlug = Object.fromEntries(opsWithLogo.map((o) => [o.slug, o]))
+  const defaultSlugs = opsWithLogo
+    .filter((o) => o.in_sidebar)
+    .map((o) => o.slug)
 
   return (
     <>
@@ -58,6 +65,7 @@ export default async function Page() {
                     <TableHead>Cargo</TableHead>
                     <TableHead>Escopo</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Dashboards</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -93,6 +101,41 @@ export default async function Page() {
                         >
                           {u.active ? "Ativo" : "Inativo"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {(u.sidebar_operacoes ?? defaultSlugs).length === 0 ? (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          ) : (
+                            (u.sidebar_operacoes ?? defaultSlugs).map((slug) => {
+                              const o = bySlug[slug]
+                              if (!o) return null
+                              return o.logo ? (
+                                <span
+                                  key={slug}
+                                  title={o.label}
+                                  className="size-5 shrink-0 overflow-hidden rounded"
+                                >
+                                  <Image
+                                    src={o.logo}
+                                    alt={o.label}
+                                    width={20}
+                                    height={20}
+                                    className="size-full object-cover"
+                                  />
+                                </span>
+                              ) : (
+                                <span
+                                  key={slug}
+                                  title={o.label}
+                                  className="bg-muted flex size-5 shrink-0 items-center justify-center rounded"
+                                >
+                                  <StoreIcon className="size-3" />
+                                </span>
+                              )
+                            })
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <UserActions user={u} operacoes={opsLite} />

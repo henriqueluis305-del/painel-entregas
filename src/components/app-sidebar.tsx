@@ -120,8 +120,19 @@ export function AppSidebar({
               className="data-[slot=sidebar-menu-button]:!p-1.5"
               render={<Link href="/dashboard" />}
             >
-              <Image src="/logo.png" alt="Logo" width={32} height={32} className="size-7 object-contain" />
-              <span className="text-base font-semibold">Painel de Entregas</span>
+              <Image
+                src="/logo_small.png"
+                alt="Parceiro Spot"
+                width={28}
+                height={28}
+                className="size-7 shrink-0 object-contain"
+              />
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-semibold">Parceiro Spot</span>
+                <span className="text-muted-foreground text-xs">
+                  Painel de Entregas
+                </span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

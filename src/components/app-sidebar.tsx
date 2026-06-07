@@ -25,7 +25,7 @@ import {
   TruckIcon,
   ChartSplineIcon,
   CircleCheckBigIcon,
-  ShieldIcon,
+  SettingsIcon,
   StoreIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -45,7 +45,7 @@ const NAV: NavItem[] = [
   { title: "Motoristas", url: "/dashboard/motoristas", icon: TruckIcon, perm: PERMS.VIEW_MOTORISTAS, group: "Plataforma" },
   { title: "SLA & DS", url: "/dashboard/sla-ds", icon: ChartSplineIcon, perm: PERMS.VIEW_SLA_DS, group: "Plataforma" },
   { title: "Liberação", url: "/dashboard/liberacao", icon: CircleCheckBigIcon, perm: PERMS.VIEW_LIBERACAO, group: "Plataforma" },
-  { title: "Administração", url: "/dashboard/admin", icon: ShieldIcon, perm: PERMS.MANAGE_USERS, group: "Gestão" },
+  { title: "Configurações", url: "/dashboard/admin", icon: SettingsIcon, perm: PERMS.MANAGE_USERS, group: "Gestão" },
 ]
 
 function NavGroup({

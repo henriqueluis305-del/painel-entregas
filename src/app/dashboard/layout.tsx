@@ -21,13 +21,17 @@ export default async function DashboardLayout({
     role: profile ? (ROLE_LABEL[profile.role] ?? profile.role) : "—",
   }
 
-  // Operações visíveis conforme escopo do usuário
+  // Operações visíveis = acessíveis (escopo) ∩ (override do usuário OU padrão in_sidebar)
   const allOps = await getOperacoesWithBases()
   const canSeeAll =
     !profile || profile.is_admin || profile.base_scope === "ALL"
-  const operacoes = (
-    canSeeAll ? allOps : allOps.filter((o) => o.id === profile.operacao_id)
-  ).map((o) => ({ slug: o.slug, label: o.label }))
+  const accessible = canSeeAll
+    ? allOps
+    : allOps.filter((o) => o.id === profile.operacao_id)
+  const userSet = profile?.sidebar_operacoes ?? null
+  const operacoes = accessible
+    .filter((o) => (userSet ? userSet.includes(o.slug) : o.in_sidebar))
+    .map((o) => ({ slug: o.slug, label: o.label }))
 
   return (
     <SidebarProvider

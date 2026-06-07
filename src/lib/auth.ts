@@ -12,6 +12,8 @@ export type Profile = {
   is_admin: boolean
   base_scope: string
   operacao_id: string | null
+  active: boolean
+  sidebar_operacoes: string[] | null
   extra_perms: string[]
   denied_perms: string[]
 }
@@ -36,7 +38,7 @@ export async function getSessionProfile(): Promise<{
   const { data: profile } = await admin
     .from("app_user")
     .select(
-      "id, email, empresa, role, is_admin, base_scope, operacao_id, extra_perms, denied_perms",
+      "id, email, empresa, role, is_admin, base_scope, operacao_id, active, sidebar_operacoes, extra_perms, denied_perms",
     )
     .eq("id", user.id)
     .single<Profile>()

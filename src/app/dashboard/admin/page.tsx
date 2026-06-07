@@ -14,6 +14,7 @@ import { PERMS, ROLE_LABEL, type Role } from "@/lib/permissions"
 import { getOperacoesWithBases, getUsers } from "@/lib/queries"
 
 import { OperacoesManager } from "./operacoes-manager"
+import { UserActions } from "./user-actions"
 
 export default async function Page() {
   await requirePerm(PERMS.MANAGE_USERS)
@@ -21,10 +22,11 @@ export default async function Page() {
     getOperacoesWithBases(),
     getUsers(),
   ])
+  const opsLite = operacoes.map((o) => ({ slug: o.slug, label: o.label }))
 
   return (
     <>
-      <SiteHeader title="Administração" />
+      <SiteHeader title="Configurações" />
       <div className="p-4 lg:p-6">
         <Tabs defaultValue="ops">
           <TabsList>
@@ -45,11 +47,16 @@ export default async function Page() {
                     <TableHead>E-mail</TableHead>
                     <TableHead>Cargo</TableHead>
                     <TableHead>Escopo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((u) => (
-                    <TableRow key={u.id}>
+                    <TableRow
+                      key={u.id}
+                      className={u.active ? "" : "opacity-50"}
+                    >
                       <TableCell className="font-medium">
                         {u.empresa ?? "—"}
                         {u.is_admin && (
@@ -67,6 +74,19 @@ export default async function Page() {
                         </Badge>
                       </TableCell>
                       <TableCell>{u.base_scope}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={u.active ? "outline" : "secondary"}
+                          className={
+                            u.active ? "text-emerald-500" : "text-muted-foreground"
+                          }
+                        >
+                          {u.active ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <UserActions user={u} operacoes={opsLite} />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,1 +1,14 @@
+assets/external/
+.web
+.states
+*.py[cod]
+*.db
 config.js
+
+# Python / Reflex
+.env
+.venv/
+__pycache__/
+*.pyc
+.web/
+.states/

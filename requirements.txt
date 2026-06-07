@@ -1,0 +1,9 @@
+# Stack Python do Painel de Entregas (usar com Python 3.13 — NÃO 3.14)
+reflex>=0.6.0          # framework full-stack (UI + backend FastAPI + websocket)
+sqlmodel>=0.0.22       # ORM (usado pelo rx.Model)
+psycopg[binary]>=3.2   # driver Postgres (Supabase em produção)
+pandas>=2.2            # parsing de CSV/XLSX
+openpyxl>=3.1          # leitura de .xlsx
+httpx>=0.27            # chamadas HTTP (Supabase Auth, ViaCEP)
+pyjwt>=2.9             # validação do JWT do Supabase
+python-dotenv>=1.0     # carregar variáveis do .env em dev

@@ -26,4 +26,5 @@ config = rx.Config(
     db_url=os.environ.get("DATABASE_URL", "sqlite:///painel_dev.db"),
     api_url=os.environ.get("API_URL") or "http://localhost:8000",
     disable_plugins=_disable,
+    show_built_with_reflex=False,
 )

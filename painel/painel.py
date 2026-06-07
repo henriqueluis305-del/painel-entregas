@@ -9,6 +9,7 @@ import reflex as rx
 
 import painel.models  # noqa: F401 — garante que Alembic detecta todos os models
 from painel.auth.state import AuthState
+from painel.components.theme import C, FONT, GOOGLE_FONTS
 from painel.pages.dashboard import (
     admin_page,
     historico_page,
@@ -23,11 +24,17 @@ from painel.pages.login import login_page
 app = rx.App(
     theme=rx.theme(
         appearance="dark",
-        accent_color="iris",
+        accent_color="indigo",
         gray_color="slate",
         radius="large",
-        font_family="DM Sans, sans-serif",
+        panel_background="solid",
     ),
+    stylesheets=[GOOGLE_FONTS],
+    style={
+        "fontFamily": FONT,
+        "backgroundColor": C.bg,
+        "color": C.fg,
+    },
 )
 
 # Pública

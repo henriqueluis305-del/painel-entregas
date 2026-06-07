@@ -1,32 +1,33 @@
 import reflex as rx
 
 from painel.auth.state import AuthState
+from painel.components.theme import C, alpha
 
 
 def login_page() -> rx.Component:
     return rx.center(
-        rx.card(
+        rx.box(
             rx.vstack(
-                rx.image(src="/logo.png", height="48px", width="auto"),
+                rx.image(src="/logo.png", height="52px", width="auto"),
                 rx.vstack(
-                    rx.heading("Painel de Entregas", size="6"),
-                    rx.text("Entre com suas credenciais", color_scheme="gray", size="2"),
+                    rx.heading("Painel de Entregas", size="6", weight="bold"),
+                    rx.text("Entre com suas credenciais", color=C.muted, size="2"),
                     spacing="1",
                     align="center",
                 ),
                 rx.form(
                     rx.vstack(
                         rx.input(
-                            rx.input.slot(rx.icon("mail", size=16)),
+                            rx.input.slot(rx.icon("mail", size=16, color=C.subtle)),
                             name="email",
-                            placeholder="E-mail",
+                            placeholder="seu@email.com",
                             type="email",
                             size="3",
                             width="100%",
                             required=True,
                         ),
                         rx.input(
-                            rx.input.slot(rx.icon("lock", size=16)),
+                            rx.input.slot(rx.icon("lock", size=16, color=C.subtle)),
                             name="password",
                             placeholder="Senha",
                             type="password",
@@ -50,6 +51,7 @@ def login_page() -> rx.Component:
                             size="3",
                             width="100%",
                             loading=AuthState.loading,
+                            cursor="pointer",
                         ),
                         spacing="3",
                         width="100%",
@@ -61,10 +63,18 @@ def login_page() -> rx.Component:
                 align="center",
                 width="100%",
             ),
-            width="380px",
-            max_width="90vw",
-            padding="6",
+            width="400px",
+            max_width="92vw",
+            padding="40px",
+            background=C.card,
+            border=f"1px solid {C.border_soft}",
+            border_radius="18px",
+            box_shadow=f"0 24px 60px {alpha('#000000', 0.5)}",
         ),
         height="100vh",
-        background=rx.color("gray", 1),
+        width="100%",
+        background=(
+            f"radial-gradient(ellipse 80% 60% at 50% -10%, {alpha(C.primary, 0.18)}, "
+            f"{C.bg} 60%)"
+        ),
     )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import Image from "next/image"
 import { PlusIcon, PencilIcon, StoreIcon, Trash2Icon } from "lucide-react"
 
@@ -56,14 +56,17 @@ function ActionSwitch({
   checked: boolean
   onToggle: (v: boolean) => Promise<void> | void
 }) {
+  const [val, setVal] = useState(checked)
   const [pending, start] = useTransition()
+  useEffect(() => setVal(checked), [checked])
   return (
     <Switch
-      defaultChecked={checked}
+      checked={val}
       disabled={pending}
-      onCheckedChange={(v: boolean) =>
+      onCheckedChange={(v: boolean) => {
+        setVal(v)
         start(() => Promise.resolve(onToggle(v)))
-      }
+      }}
     />
   )
 }

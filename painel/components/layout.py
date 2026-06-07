@@ -21,9 +21,9 @@ def _nav_link(label: str, icon: str, route: str, visible) -> rx.Component:
                 padding_y="2",
                 border_radius="10px",
                 color=rx.cond(active, C.fg, C.muted),
-                background=rx.cond(active, alpha(C.primary, 0.16), "transparent"),
-                box_shadow=rx.cond(active, f"inset 0 0 0 1px {alpha(C.primary, 0.25)}", "none"),
-                _hover={"background": rx.cond(active, alpha(C.primary, 0.16), C.card_hover), "color": C.fg},
+                background=rx.cond(active, C.elevated, "transparent"),
+                box_shadow=rx.cond(active, f"inset 0 0 0 1px {C.border}", "none"),
+                _hover={"background": rx.cond(active, C.elevated, C.card_hover), "color": C.fg},
                 transition="all 0.15s ease",
             ),
             href=route,
@@ -51,22 +51,18 @@ def _group_label(text: str) -> rx.Component:
 
 def _sidebar() -> rx.Component:
     return rx.vstack(
-        # Marca
+        # Marca — mesma altura do topbar (72px) p/ alinhar o divisor
         rx.hstack(
             rx.image(src="/logo.png", height="34px", width="auto"),
-            rx.vstack(
-                rx.text("Painel", size="2", weight="bold", line_height="1"),
-                rx.text("Entregas", size="1", color=C.muted, line_height="1.2"),
-                spacing="0",
-                align="start",
-            ),
+            rx.text("Painel de Entregas", size="3", weight="bold", no_of_lines=1),
             spacing="3",
             align="center",
             width="100%",
-            padding_x="3",
-            padding_y="3",
+            height="72px",
+            padding_x="4",
+            flex_shrink="0",
+            border_bottom=f"1px solid {C.border_soft}",
         ),
-        rx.divider(border_color=C.border_soft),
         # Navegação
         rx.vstack(
             _group_label("Plataforma"),
@@ -86,9 +82,10 @@ def _sidebar() -> rx.Component:
             spacing="1",
             width="100%",
             align="start",
+            padding="3",
         ),
         rx.spacer(),
-        # Usuário
+        # Usuário (card sólido)
         rx.box(
             rx.hstack(
                 rx.avatar(fallback=AuthState.initials, size="2", radius="full",
@@ -114,18 +111,19 @@ def _sidebar() -> rx.Component:
                 spacing="2",
                 align="center",
                 width="100%",
+                padding="2",
+                border_radius="12px",
+                background=C.elevated,
+                border=f"1px solid {C.border}",
             ),
             width="100%",
-            padding="2",
-            border_radius="12px",
-            background=C.card,
-            border=f"1px solid {C.border_soft}",
+            padding="3",
         ),
         height="100vh",
         width="256px",
         flex_shrink="0",
-        padding="3",
-        spacing="1",
+        padding="0",
+        spacing="0",
         background=C.sidebar,
         border_right=f"1px solid {C.border_soft}",
         position="sticky",
@@ -136,12 +134,7 @@ def _sidebar() -> rx.Component:
 
 def _topbar(title: str) -> rx.Component:
     return rx.hstack(
-        rx.vstack(
-            rx.text("Painel de Entregas", size="1", color=C.subtle),
-            rx.heading(title, size="5", weight="bold"),
-            spacing="0",
-            align="start",
-        ),
+        rx.heading(title, size="5", weight="bold"),
         rx.spacer(),
         rx.color_mode.button(),
         align="center",

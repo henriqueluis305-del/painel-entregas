@@ -82,10 +82,22 @@ def _chart() -> rx.Component:
                 align="center",
             ),
             rx.recharts.area_chart(
-                rx.recharts.area(data_key="sla", stroke=C.indigo, fill=C.indigo,
-                                 fill_opacity=0.18, stroke_width=2, type_="natural"),
-                rx.recharts.area(data_key="ds", stroke=C.pink, fill=C.pink,
-                                 fill_opacity=0.18, stroke_width=2, type_="natural"),
+                rx.el.svg.defs(
+                    rx.el.svg.linear_gradient(
+                        rx.el.svg.stop(stop_color=C.indigo, offset="5%", stop_opacity=0.5),
+                        rx.el.svg.stop(stop_color=C.indigo, offset="95%", stop_opacity=0.0),
+                        id="g_sla", x1="0", x2="0", y1="0", y2="1",
+                    ),
+                    rx.el.svg.linear_gradient(
+                        rx.el.svg.stop(stop_color=C.pink, offset="5%", stop_opacity=0.5),
+                        rx.el.svg.stop(stop_color=C.pink, offset="95%", stop_opacity=0.0),
+                        id="g_ds", x1="0", x2="0", y1="0", y2="1",
+                    ),
+                ),
+                rx.recharts.area(data_key="sla", stroke=C.indigo, fill="url(#g_sla)",
+                                 fill_opacity=1, stroke_width=2, type_="natural"),
+                rx.recharts.area(data_key="ds", stroke=C.pink, fill="url(#g_ds)",
+                                 fill_opacity=1, stroke_width=2, type_="natural"),
                 rx.recharts.x_axis(data_key="dia", axis_line=False, tick_line=False,
                                    custom_attrs={"fontSize": "12px"}),
                 rx.recharts.y_axis(domain=[60, 100], axis_line=False, tick_line=False,

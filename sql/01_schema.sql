@@ -22,6 +22,7 @@ create table if not exists operacao (
   slug        text not null unique,                 -- 'shopee', 'meli', ...
   label       text not null,
   active      boolean not null default true,
+  config      jsonb not null default '{}'::jsonb,   -- ex.: { "stuck_daily_reset": true }
   created_at  timestamptz not null default now()
 );
 
@@ -223,14 +224,16 @@ create table if not exists shopee_package (
   driver_id      text references driver(id),
   dias_preso     numeric(6,2),                       -- LM Hub Days
   agency         text,
+  last_backlog_date date,                            -- dia do backlog mais recente (limpeza diária da visão)
   first_seen_at  timestamptz not null default now(),
   last_status_at timestamptz not null default now(),
   delivered_at   timestamptz,
   updated_at     timestamptz not null default now(),
   unique (base_id, codigo)
 );
-create index if not exists idx_shopee_package_base   on shopee_package(base_id, status);
-create index if not exists idx_shopee_package_driver on shopee_package(driver_id);
+create index if not exists idx_shopee_package_base    on shopee_package(base_id, status);
+create index if not exists idx_shopee_package_driver  on shopee_package(driver_id);
+create index if not exists idx_shopee_package_backlog on shopee_package(base_id, last_backlog_date);
 
 -- histórico append-only de mudanças de status (evolução / auditoria)
 create table if not exists shopee_package_event (

@@ -27,12 +27,32 @@ type EmbeddedRow = {
   driver: { id: string; name: string } | null
 }
 
-/** Pacotes stuck da operação, opcionalmente filtrados por slugs de base. */
+/** Maior `last_backlog_date` da operação (o "dia atual" da visão). */
+async function latestBacklogDate(
+  sb: ReturnType<typeof createAdminClient>,
+  operacaoId: string,
+): Promise<string | null> {
+  const { data } = await sb
+    .from("shopee_package")
+    .select("last_backlog_date, base!inner(operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .not("last_backlog_date", "is", null)
+    .order("last_backlog_date", { ascending: false })
+    .limit(1)
+  const row = (data ?? [])[0] as { last_backlog_date: string } | undefined
+  return row?.last_backlog_date ?? null
+}
+
+/** Pacotes stuck da operação, opcionalmente filtrados por bases e pelo dia. */
 export async function getStuckPackages(
   operacaoId: string,
   baseSlugs: string[] = [],
+  opts: { dailyReset?: boolean } = {},
 ): Promise<StuckRow[]> {
   const sb = createAdminClient()
+  // limpeza diária: mostra só o backlog do dia mais recente (DB intacto)
+  const day = opts.dailyReset ? await latestBacklogDate(sb, operacaoId) : null
+
   // PostgREST/Supabase limita ~1000 linhas por request → pagina via range.
   const PAGE = 1000
   const all: EmbeddedRow[] = []
@@ -47,6 +67,7 @@ export async function getStuckPackages(
       .order("codigo") // desempate estável entre páginas
       .range(from, from + PAGE - 1)
     if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
+    if (day) q = q.eq("last_backlog_date", day)
 
     const { data, error } = await q
     if (error) throw new Error(`getStuckPackages: ${error.message}`)

@@ -17,6 +17,7 @@ export const SHOPEE_TABS: ShopeeTab[] = [
   { slug: "stuck", label: "Stuck" },
   { slug: "pnr", label: "PNR", wip: true },
   { slug: "uploads", label: "Uploads", admin: true },
+  { slug: "config", label: "Config", admin: true },
 ]
 
 export type ShopeePeriod = {

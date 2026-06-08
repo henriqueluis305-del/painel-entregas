@@ -153,10 +153,12 @@ async function main() {
     console.log(`motoristas: +${drvNew} novos | ${drvFail} falhas`)
 
     // 2) pacotes (upsert em lote) → mapeia chave -> package id
+    const backlogDate = new Date().toISOString().slice(0, 10) // YYYY-MM-DD (dia do backlog)
     const keyToId = new Map<string, number>()
     let pkgUp = 0
     for (const ch of chunk(rows, 1000)) {
       const vals: unknown[] = []
+      const dIdx = ch.length * 6 + 1 // índice do param da data (1 só por chunk)
       const tuples = ch.map((r, i) => {
         const b = i * 6
         vals.push(
@@ -167,14 +169,16 @@ async function main() {
           r.dias,
           r.agency,
         )
-        return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6})`
+        return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${dIdx})`
       })
+      vals.push(backlogDate)
       const res = await client.query(
-        `insert into shopee_package (base_id, codigo, status, driver_id, dias_preso, agency)
+        `insert into shopee_package (base_id, codigo, status, driver_id, dias_preso, agency, last_backlog_date)
          values ${tuples.join(",")}
          on conflict (base_id, codigo) do update set
            status=excluded.status, driver_id=excluded.driver_id,
            dias_preso=excluded.dias_preso, agency=excluded.agency,
+           last_backlog_date=excluded.last_backlog_date,
            last_status_at=now(), updated_at=now()
          returning id, base_id, codigo`,
         vals,

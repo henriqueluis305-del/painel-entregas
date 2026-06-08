@@ -357,11 +357,13 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [ ] ⚠ Definir host do cron ([§2.5](#25-onde-roda-o-cron-das-2330--aprovação-infra))
 - [ ] Job de snapshot diário (idempotente, 1/base/dia)
 - [ ] Tabela `cron_config` + seção em Configurações (hora/forçar/on-off/histórico)
-- [ ] **"Limpeza diária da VISÃO" (não do DB!)** — pedido do Pedro:
-  - DB continua **acumulativo, nunca deleta**. O que "zera" é a **visão padrão do dash**: no início do dia (pós-snapshot), o Stuck mostra só o **backlog novo do dia** ("limpo").
-  - Requer marcar a **membresia por dia** do pacote (qual backlog/dia ele pertence) — ex.: `last_backlog_date` no `shopee_package` ou tabela de membership por dia. Pacote preso vários dias reaparece no backlog de cada dia.
-  - **Toggle em Configurações da operação**: ligar/desligar a limpeza diária da visão (desligado = mostra acumulado).
-  - **Filtro "a partir do dia X"** na barra de filtros (ver dados de um dia específico em diante).
+- [x] **"Limpeza diária da VISÃO" (não do DB!) — adiantada 2026-06-08:**
+  - [x] `operacao.config` (jsonb) + `shopee_package.last_backlog_date` (`sql/15`)
+  - [x] Subtab **Config** (ADM) com toggle "Limpeza diária da visão" — `config/` + `setStuckDailyReset` action + `config-form.tsx`
+  - [x] `getStuckPackages` respeita o toggle (mostra só o `last_backlog_date` mais recente; off = acumulado)
+  - [ ] `import-backlog` grava `last_backlog_date` ✅; falta o **cron/virada de dia** automatizar a troca de "dia atual"
+  - [ ] **Filtro "a partir do dia X"** na barra de filtros (ainda não)
+  - [ ] Escopar o **burn-down/checkpoints** ao dia quando o toggle estiver on (hoje mostra todos os dias; só há 1 dia)
 - [ ] **Corrigir denominador do burn-down** p/ multi-dia: usar o **conjunto do dia** (backlog do dia), não `count(*)` acumulado de `shopee_package`.
 
 ### Fase 9 — PNR (quando vierem os dados)
@@ -391,6 +393,7 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Backup pós-carga (backlog) | ✅ `backups/2026-06-08T03-32-42-611Z` (shopee_package: 4284) |
 | 2026-06-08 | Cidades nos labels das bases | ✅ `sql/13` (todas as 6 bases) |
 | 2026-06-08 | Tracking + checkpoints + 2 gráficos | ✅ `sql/14`, `import-stuck-track.ts`, `stuck-charts.tsx` (burn-down 100%→99.98% — raso pois CSVs são da mesma manhã) |
+| 2026-06-08 | Limpeza diária da visão (adiantada da Fase 8) | ✅ `sql/15` (operacao.config + last_backlog_date), subtab Config (ADM) c/ toggle, Stuck filtra pelo dia mais recente quando ligado |
 
 ---
 

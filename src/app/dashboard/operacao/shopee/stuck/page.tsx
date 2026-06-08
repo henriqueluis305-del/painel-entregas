@@ -6,6 +6,7 @@ import { StuckCharts } from "@/components/shopee/stuck-charts"
 import { StuckTable } from "@/components/shopee/stuck-table"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { effectiveBases, parseShopeeFilters, SHOPEE_SLUG } from "@/lib/shopee"
+import { getShopeeConfig } from "@/lib/shopee/config"
 import {
   computeStuckKpis,
   getStuckCheckpoints,
@@ -20,9 +21,10 @@ export default async function StuckPage({
   const filters = parseShopeeFilters(await searchParams)
   const op = await getOperacaoBySlug(SHOPEE_SLUG)
   const slugs = effectiveBases(filters)
+  const config = await getShopeeConfig()
   const [rows, points] = op
     ? await Promise.all([
-        getStuckPackages(op.id, slugs),
+        getStuckPackages(op.id, slugs, { dailyReset: config.stuckDailyReset }),
         getStuckCheckpoints(op.id, slugs),
       ])
     : [[], []]

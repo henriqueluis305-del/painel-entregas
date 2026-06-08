@@ -340,8 +340,8 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Gráfico de evolução SLA (por dia) + burn-down DS (por upload)
 
 ### Fase 5 — Geral + Histórico
-- [ ] Consolidado no Geral (SLA/DS/Stuck + PNR placeholder)
-- [ ] Histórico com filtros e tendências
+- [x] Consolidado no Geral (SLA/DS/Stuck reais + cards clicáveis p/ subtabs + espaço PNR-WIP) — `geral/page.tsx`
+- [ ] Histórico com filtros e tendências (depende de mais dias de snapshot)
 
 ### Fase 6 — Upload central + robustez
 - [ ] Bucket privado Storage + pipeline com progresso

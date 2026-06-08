@@ -1,9 +1,25 @@
 import { redirect } from "next/navigation"
 
 import { Uploader } from "@/components/shopee/uploader"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { getSessionProfile } from "@/lib/auth"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { SHOPEE_BASE_PATH, SHOPEE_SLUG } from "@/lib/shopee"
+import { getUploadLog, uploadKindLabel } from "@/lib/shopee/upload-log"
 
 export default async function UploadsPage() {
   const session = await getSessionProfile()
@@ -13,6 +29,7 @@ export default async function UploadsPage() {
   const bases = (op?.bases ?? [])
     .filter((b) => b.active)
     .map((b) => ({ slug: b.slug, label: b.label }))
+  const log = await getUploadLog()
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,6 +69,60 @@ export default async function UploadsPage() {
           bases={bases}
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Histórico de uploads</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {log.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              Nenhum upload ainda.
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quando</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Arquivos</TableHead>
+                    <TableHead className="text-right">Linhas</TableHead>
+                    <TableHead>Resultado</TableHead>
+                    <TableHead>Por</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {log.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {new Date(r.created_at).toLocaleString("pt-BR")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {uploadKindLabel(r.kind)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-[220px] truncate text-xs">
+                        {r.filenames ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.rows.toLocaleString("pt-BR")}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-[260px] truncate text-xs">
+                        {r.summary ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {r.user_email ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

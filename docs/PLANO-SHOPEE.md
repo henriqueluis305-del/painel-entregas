@@ -347,8 +347,9 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Subtab `Uploads` (ADM) com upload in-app dos 4 tipos (Backlog, Tracking, DS, SLA) — `uploads/page.tsx` + `components/shopee/uploader.tsx`
 - [x] Fluxo **analisar → diff (resumo) → confirmar** via server actions (`uploads/actions.ts`), reusando os parsers/SQL dos scripts (pg via `src/lib/pg.ts`)
 - [x] `serverActions.bodySizeLimit: 30mb` p/ arquivos grandes; `@types/pg` adicionado
+- [x] Histórico de uploads (`sql/20` `shopee_upload_log` + tabela na subtab Uploads: quando/tipo/arquivos/linhas/resultado/por quem)
 - [ ] (futuro) bucket Storage p/ guardar o cru + barra de progresso real (hoje é resumo após processar)
-- [ ] (futuro) histórico de uploads + generalizar p/ outras operações
+- [ ] (futuro) generalizar componente de upload p/ outras operações
 
 ### Fase 7 — PDF A4
 - [ ] ⚠ Decidir lib ([§2.4](#24-biblioteca-de-pdf--aprovação-custoinfra)) e instalar

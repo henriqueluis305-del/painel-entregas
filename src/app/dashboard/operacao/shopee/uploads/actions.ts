@@ -16,9 +16,24 @@ import { parseCsvObjects } from "@/lib/shopee/csv"
 export type AnalyzeResult = { ok: boolean; title: string; lines: string[]; warn?: string }
 export type ApplyResult = { ok: boolean; message: string }
 
-async function requireAdmin() {
+async function requireAdmin(): Promise<string> {
   const s = await getSessionProfile()
   if (!s?.profile?.is_admin) throw new Error("Não autorizado")
+  return s.email
+}
+
+async function logUpload(
+  c: Client,
+  email: string,
+  kind: string,
+  filenames: string,
+  rows: number,
+  summary: string,
+) {
+  await c.query(
+    `insert into shopee_upload_log (user_email, kind, filenames, rows, summary) values ($1,$2,$3,$4,$5)`,
+    [email, kind, filenames, rows, summary],
+  )
 }
 
 const todayBr = () =>
@@ -286,11 +301,12 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
 
 // ============================ APPLY ============================
 export async function applyUpload(fd: FormData): Promise<ApplyResult> {
-  await requireAdmin()
+  const email = await requireAdmin()
   const kind = String(fd.get("kind") || "")
   const baseSlug = String(fd.get("baseSlug") || "")
   const files = getFiles(fd)
   if (!files.length) return { ok: false, message: "Nenhum arquivo." }
+  const filenames = files.map((f) => f.name).join(", ")
 
   try {
     if (kind === "backlog") {
@@ -338,7 +354,9 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
         }
         const baseIds = [...new Set(valid.map((r) => bmap.get(r.baseSlug)!))]
         await recordStuckCheckpoint(c, baseIds, "Backlog", todayBr())
-        return `Backlog aplicado: ${valid.length} pacotes em ${baseIds.length} base(s).`
+        const m = `Backlog aplicado: ${valid.length} pacotes em ${baseIds.length} base(s).`
+        await logUpload(c, email, "backlog", filenames, valid.length, m)
+        return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/stuck`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
@@ -377,7 +395,9 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
           )
           await recordStuckCheckpoint(c, [...bases], `Tracking ${horaBr()}`, todayBr())
         }
-        return `Tracking aplicado: ${ids.length} pacotes atualizados.`
+        const m = `Tracking aplicado: ${ids.length} pacotes atualizados.`
+        await logUpload(c, email, "tracking", filenames, ids.length, m)
+        return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/stuck`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
@@ -413,7 +433,9 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
             [baseId, seq, dataPtBr, `DS ${horaBr()}`],
           )
         }
-        return `DS aplicado: ${valid.length} motoristas em ${baseIds.length} base(s).`
+        const m = `DS aplicado: ${valid.length} motoristas em ${baseIds.length} base(s).`
+        await logUpload(c, email, "ds", filenames, valid.length, m)
+        return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/ds`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
@@ -427,6 +449,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
       const b = calcSla(statuses)
       const porStatus: Record<string, number> = {}
       for (const s of statuses) porStatus[s || "(vazio)"] = (porStatus[s || "(vazio)"] ?? 0) + 1
+      const m = `SLA aplicado p/ ${baseSlug}: ${b.pct}% (${b.total} pacotes).`
       await withPgClient(async (c) => {
         const op = await shopeeOpId(c)
         const base = await c.query("select id from base where operacao_id=$1 and slug=$2", [op, baseSlug])
@@ -439,10 +462,11 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
              outros=excluded.outros, sla_pct=excluded.sla_pct, por_status=excluded.por_status, updated_at=now()`,
           [String(base.rows[0].id), todayBr(), b.total, b.entregues, b.emRota, b.ocorrencias, b.faltantes, b.outros, b.pct, JSON.stringify(porStatus)],
         )
+        await logUpload(c, email, "sla", filenames, b.total, m)
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/sla`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
-      return { ok: true, message: `SLA aplicado p/ ${baseSlug}: ${b.pct}% (${b.total} pacotes).` }
+      return { ok: true, message: m }
     }
 
     return { ok: false, message: "Tipo desconhecido." }

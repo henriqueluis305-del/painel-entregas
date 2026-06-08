@@ -55,7 +55,7 @@ Construir a **página da operação Shopee** com:
 > Estas travam fases inteiras. Recomendação minha em **negrito**; confirme ou ajuste.
 
 > **✅ Decididas em 2026-06-08:**
-> - **Driver ID** (§2.2): `[99067]` é a PK no DB; `Driver ID` do CSV (`1251914`) guardado como `spx_driver_id` (mesma pessoa, 2 sistemas).
+> - **Driver ID** (§2.2): `[99067]` é a PK no DB. ⚠️ **Corrigido 2026-06-08:** o `Driver ID` do CSV é o MESMO número do `[id]` (195/195 batem) — **um sistema só**, sem match por nome. Coluna `spx_driver_id` mantida por decisão do Pedro, mas redundante.
 > - **Regra Stuck** (§2.3/§4.4): coluna **`LM Hub Days`**, `floor(dias) >= 1` **E** `status != Delivered`.
 > - **PDF** (§2.4): **Puppeteer + `@sparticuz/chromium`** (rota `/print` renderizada server-side).
 > - **Cron** (§2.5): **Vercel Cron** (granularidade fixa → rota checa `cron_config.hora` no DB).
@@ -237,12 +237,15 @@ ADM seleciona arquivo(s)
 - **Guard ADM:** checagem de role no Server Action (nunca confiar no client). Subtab `Uploads` escondida no nav p/ não-ADM.
 
 ### 5.3 Cadastro de motoristas
-- Toda planilha que traz motorista (`[ID] Nome` em DS/fleets/backlog `Latest User Name`, ou `Driver ID`+`Driver Name` no CSV) passa por um **resolver de motorista**:
-  - Extrai ID bracketado via regex `^\[(\d+)\]\s*(.+)$`.
-  - Se o ID não existe em `driver` → **cadastra** (id = número, name = nome).
-  - Se existe → atualiza nome se mudou.
+> **✅ Verificado 2026-06-08:** o `Driver ID` do CSV é o MESMO número do `[id]` no nome (195/195 motoristas batem). **Um único sistema de ID** — sem match por nome.
+
+- Toda planilha que traz motorista passa por um **resolver de motorista**, que pega o ID de onde estiver:
+  - `[ID] Nome` (DS/fleets e backlog `Latest User Name`) → regex `^\s*\[\s*(\d+)\s*\]\s*(.+)$`.
+  - `Driver ID` + `Driver Name` (CSV SLA/stuck_track) → o número é o mesmo id.
+  - Upsert por `id`: não existe → cadastra (`id`=número, `name`=nome); existe → atualiza nome se mudou.
+- **Filtro de contas de sistema (decisão do Pedro):** ignorar `Latest User Name` que seja email (`@shopeemobile-external.com`, `@shopee.com`), `driver confirm`, `spx@shopee.com`. Só vira motorista quem tem ID real. (No exemplo, 8 contas filtradas; 0 motoristas reais sem ID.)
+- `spx_driver_id`: coluna **mantida** (decisão do Pedro), embora redundante com `id`. Resolver não depende dela.
 - Relatório no diff: "X motoristas novos cadastrados".
-- ⚠ depende da decisão [§2.2](#22-identidade-do-motorista--aprovação).
 
 ---
 

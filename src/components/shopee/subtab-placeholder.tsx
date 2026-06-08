@@ -1,6 +1,6 @@
 import { ConstructionIcon } from "lucide-react"
 
-import { ShopeeFilterBar } from "@/components/shopee/filter-bar"
+import { ShopeeSubtabShell } from "@/components/shopee/subtab-shell"
 import {
   Card,
   CardContent,
@@ -8,8 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getOperacaoBySlug } from "@/lib/queries"
-import { SHOPEE_SLUG } from "@/lib/shopee"
 
 export async function SubtabPlaceholder({
   title,
@@ -24,20 +22,8 @@ export async function SubtabPlaceholder({
   planned: string[]
   children?: React.ReactNode
 }) {
-  const op = await getOperacaoBySlug(SHOPEE_SLUG)
-  const bases = (op?.bases ?? [])
-    .filter((b) => b.active)
-    .map((b) => ({ slug: b.slug, label: b.label }))
-
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-muted-foreground text-sm">{description}</p>
-      </div>
-
-      <ShopeeFilterBar bases={bases} />
-
+    <ShopeeSubtabShell title={title} description={description}>
       {children}
 
       <Card className="border-dashed">
@@ -76,6 +62,6 @@ export async function SubtabPlaceholder({
           </div>
         </CardContent>
       </Card>
-    </div>
+    </ShopeeSubtabShell>
   )
 }

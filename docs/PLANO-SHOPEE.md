@@ -323,11 +323,13 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 
 ### Fase 3 — Stuck (a subtab mais completa)
 - [x] ⚠ Criar tabelas `shopee_package`, `shopee_package_event`, `shopee_stuck_snapshot` — `sql/10_shopee_stuck.sql` (testado: upsert marca Delivered sem deletar)
-- [ ] Parser de backlog xlsx + regra de "é stuck" (após confirmar ❓)
-- [ ] Upload incremental por CSV com diff + confirmação
-- [ ] Tabela paginada + busca + esconder entregues
-- [ ] Export de IDs p/ clipboard
-- [ ] KPIs e gráficos da subtab
+- [x] Base `xpt-smt-01` (São Mateus) criada — apareceu no backlog, faltava no seed (`sql/11_base_sao_mateus.sql`)
+- [x] Parser de backlog xlsx + regra `floor(LM Hub Days)≥1 e ≠Delivered` (`src/lib/shopee/stuck.ts`, `scripts/import-backlog.ts`): **4.284 stuck** + 88 motoristas novos
+- [x] Tabela paginada + busca + esconder entregues (`src/components/shopee/stuck-table.tsx`)
+- [x] Export de IDs p/ clipboard (toast via sonner; `Toaster` montado no dashboard layout)
+- [x] KPIs da subtab (Stuck ativos / Entregues / Motoristas / Bases)
+- [ ] Upload incremental por CSV (stuck_track) com diff + confirmação — **próximo**
+- [ ] Gráficos da subtab (tendência / por status / por base)
 
 ### Fase 4 — SLA e DS
 - [ ] Validar fluxos [§6](#6-fluxos-a-validar-sla-e-ds) com o Pedro
@@ -375,7 +377,10 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Backup pré-carga (pós-migração) | ✅ `backups/2026-06-08T02-42-24-650Z` (16 tabelas) |
 | 2026-06-08 | Verificação IDs motorista (1 sistema só) | ✅ 195/195 batem; `spx_driver_id` mantido por decisão |
 | 2026-06-08 | **Fase 2** — resolver + import do fleets | ✅ `src/lib/shopee/drivers.ts` + `scripts/import-fleets.ts` (exceljs); 92 motoristas carregados (idempotente) |
-| 2026-06-08 | Backup pós-carga | ✅ `backups/2026-06-08T03-19-35-730Z` (driver: 92) |
+| 2026-06-08 | Backup pós-carga (motoristas) | ✅ `backups/2026-06-08T03-19-35-730Z` (driver: 92) |
+| 2026-06-08 | Base XPT-SMT-01 criada | ✅ `sql/11_base_sao_mateus.sql` (faltava no seed) |
+| 2026-06-08 | **Fase 3 (parcial)** — Stuck: backlog + dashboard | ✅ 4.284 stuck importados; subtab com KPIs, tabela (busca/paginação/esconder-entregues) e export de IDs |
+| 2026-06-08 | Backup pós-carga (backlog) | ✅ `backups/2026-06-08T03-32-42-611Z` (shopee_package: 4284) |
 
 ---
 

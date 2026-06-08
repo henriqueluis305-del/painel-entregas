@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Toaster } from "@/components/ui/sonner"
 import { getSessionProfile } from "@/lib/auth"
 import { resolvePerms, ROLE_LABEL } from "@/lib/permissions"
 import { getOperacoesWithBases } from "@/lib/queries"
@@ -56,6 +57,7 @@ export default async function DashboardLayout({
         operacoes={operacoes}
       />
       <SidebarInset>{children}</SidebarInset>
+      <Toaster />
     </SidebarProvider>
   )
 }

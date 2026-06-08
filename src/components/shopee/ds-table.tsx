@@ -1,7 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  SearchIcon,
+} from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -13,27 +20,57 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import type { DsRow } from "@/lib/shopee/ds-queries"
 
 const PAGE_SIZE = 25
 
-function pct(entregues: number, saiu: number) {
+function dsPct(entregues: number, saiu: number) {
   return saiu > 0 ? Math.round((entregues / saiu) * 100) : 0
+}
+
+type SortKey = "driver_name" | "saiu" | "entregues" | "em_rota" | "ocorrencias" | "ds"
+type Sort = { key: SortKey; dir: "asc" | "desc" }
+
+function val(r: DsRow, key: SortKey): string | number {
+  switch (key) {
+    case "driver_name":
+      return r.driver_name
+    case "ds":
+      return dsPct(r.entregues, r.saiu)
+    default:
+      return r[key]
+  }
 }
 
 export function DsTable({ rows }: { rows: DsRow[] }) {
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(0)
+  const [sort, setSort] = useState<Sort>({ key: "entregues", dir: "desc" })
+
+  function toggleSort(key: SortKey) {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }))
+    setPage(0)
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
-      (r) =>
-        r.driver_name.toLowerCase().includes(q) ||
-        (r.driver_id ?? "").includes(q),
-    )
-  }, [rows, query])
+    const base = !q
+      ? [...rows]
+      : rows.filter(
+          (r) => r.driver_name.toLowerCase().includes(q) || (r.driver_id ?? "").includes(q),
+        )
+    base.sort((a, b) => {
+      const va = val(a, sort.key)
+      const vb = val(b, sort.key)
+      const c =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), "pt-BR")
+      return sort.dir === "asc" ? c : -c
+    })
+    return base
+  }, [rows, query, sort])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount - 1)
@@ -58,12 +95,12 @@ export function DsTable({ rows }: { rows: DsRow[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Motorista</TableHead>
-              <TableHead className="text-right">Saiu</TableHead>
-              <TableHead className="text-right">Entregues</TableHead>
-              <TableHead className="text-right">Em rota</TableHead>
-              <TableHead className="text-right">Ocorrências</TableHead>
-              <TableHead className="text-right">DS%</TableHead>
+              <SortTh label="Motorista" k="driver_name" sort={sort} onSort={toggleSort} />
+              <SortTh label="Saiu" k="saiu" sort={sort} onSort={toggleSort} align="right" />
+              <SortTh label="Entregues" k="entregues" sort={sort} onSort={toggleSort} align="right" />
+              <SortTh label="Em rota" k="em_rota" sort={sort} onSort={toggleSort} align="right" />
+              <SortTh label="Ocorrências" k="ocorrencias" sort={sort} onSort={toggleSort} align="right" />
+              <SortTh label="DS%" k="ds" sort={sort} onSort={toggleSort} align="right" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -74,61 +111,70 @@ export function DsTable({ rows }: { rows: DsRow[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              pageRows.map((r) => {
-                const p = pct(r.entregues, r.saiu)
-                return (
-                  <TableRow key={`${r.base_slug}-${r.driver_id}`}>
-                    <TableCell className="max-w-[260px] truncate">
-                      <span className="text-muted-foreground">[{r.driver_id}]</span>{" "}
-                      {r.driver_name}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.saiu}</TableCell>
-                    <TableCell className="text-right tabular-nums text-emerald-500">
-                      {r.entregues}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.em_rota}</TableCell>
-                    <TableCell className="text-right tabular-nums text-red-500">
-                      {r.ocorrencias}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {p}%
-                    </TableCell>
-                  </TableRow>
-                )
-              })
+              pageRows.map((r) => (
+                <TableRow key={`${r.base_slug}-${r.driver_id}`}>
+                  <TableCell className="max-w-[260px] truncate">
+                    <span className="text-muted-foreground">[{r.driver_id}]</span> {r.driver_name}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{r.saiu}</TableCell>
+                  <TableCell className="text-right tabular-nums text-emerald-500">{r.entregues}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.em_rota}</TableCell>
+                  <TableCell className="text-right tabular-nums text-red-500">{r.ocorrencias}</TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{dsPct(r.entregues, r.saiu)}%</TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground text-sm">
-          {filtered.length} motorista(s)
-        </span>
+        <span className="text-muted-foreground text-sm">{filtered.length} motorista(s)</span>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">
-            Página {safePage + 1} de {pageCount}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={safePage === 0}
-          >
+          <span className="text-muted-foreground text-sm">Página {safePage + 1} de {pageCount}</span>
+          <Button variant="outline" size="icon" className="size-8" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0}>
             <ChevronLeftIcon className="size-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8"
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={safePage >= pageCount - 1}
-          >
+          <Button variant="outline" size="icon" className="size-8" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1}>
             <ChevronRightIcon className="size-4" />
           </Button>
         </div>
       </div>
     </div>
+  )
+}
+
+function SortTh({
+  label,
+  k,
+  sort,
+  onSort,
+  align,
+}: {
+  label: string
+  k: SortKey
+  sort: Sort
+  onSort: (k: SortKey) => void
+  align?: "right"
+}) {
+  const active = sort.key === k
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className={cn(
+          "hover:text-foreground inline-flex items-center gap-1 transition-colors",
+          align === "right" && "flex-row-reverse",
+        )}
+      >
+        {label}
+        {active ? (
+          sort.dir === "asc" ? <ChevronUpIcon className="size-3" /> : <ChevronDownIcon className="size-3" />
+        ) : (
+          <ChevronsUpDownIcon className="size-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
   )
 }

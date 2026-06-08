@@ -395,6 +395,7 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Tracking + checkpoints + 2 gráficos | ✅ `sql/14`, `import-stuck-track.ts`, `stuck-charts.tsx` (burn-down 100%→99.98% — raso pois CSVs são da mesma manhã) |
 | 2026-06-08 | Limpeza diária da visão (adiantada da Fase 8) | ✅ `sql/15` (operacao.config + last_backlog_date), subtab Config (ADM) c/ toggle, Stuck filtra pelo dia mais recente quando ligado |
 | 2026-06-08 | **DS real** (subtab + import) | ✅ `sql/16`, `import-ds.ts`; fleets tem 21 col reais (read_only do openpyxl tinha enganado); base na col C. Bateu EXATO com o print: 92 mot., DS 84,3%, 9013 ent |
+| 2026-06-08 | DS: 3 gráficos + fixes + sorts | ✅ burn-down DS (`sql/17` checkpoints) + meia-lua (sem clip, texto via SVG Label) + donut composição. Tooltip do donut corrigido (texto central via Label SVG). Sort nas tabelas Stuck e DS |
 
 ---
 

@@ -27,6 +27,48 @@ export type DsData = {
   day: string | null
 }
 
+export type DsCheckpoint = { seq: number; label: string; pct: number }
+
+type EmbeddedDsCkpt = {
+  seq: number
+  label: string
+  saiu: number
+  entregues: number
+  base: { slug: string; operacao_id: string } | null
+}
+
+/** Burn-down do DS: % ainda não entregue por upload (checkpoint), agregado nas bases. */
+export async function getDsCheckpoints(
+  operacaoId: string,
+  baseSlugs: string[] = [],
+): Promise<DsCheckpoint[]> {
+  const sb = createAdminClient()
+  let q = sb
+    .from("shopee_ds_checkpoint")
+    .select("seq, label, saiu, entregues, base!inner(slug, operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .order("seq")
+  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
+
+  const { data, error } = await q
+  if (error) throw new Error(`getDsCheckpoints: ${error.message}`)
+
+  const map = new Map<number, { label: string; saiu: number; entregues: number }>()
+  for (const r of (data ?? []) as unknown as EmbeddedDsCkpt[]) {
+    const m = map.get(r.seq) ?? { label: r.label, saiu: 0, entregues: 0 }
+    m.saiu += r.saiu
+    m.entregues += r.entregues
+    map.set(r.seq, m)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([seq, m]) => ({
+      seq,
+      label: m.label,
+      pct: m.saiu ? Number((((m.saiu - m.entregues) / m.saiu) * 100).toFixed(1)) : 0,
+    }))
+}
+
 export async function getDsData(
   operacaoId: string,
   baseSlugs: string[] = [],

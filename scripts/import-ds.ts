@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url"
 import { resolveDriver } from "../src/lib/shopee/drivers.ts"
 import { parseDsCells, calcDs } from "../src/lib/shopee/ds.ts"
 import { resolveBaseSlug } from "../src/lib/shopee/stuck.ts"
-import { dataPtBrHoje } from "./_checkpoints.ts"
+import { dataPtBrHoje, horaHoje, recordDsCheckpoints } from "./_checkpoints.ts"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, "..")
@@ -140,7 +140,11 @@ async function main() {
       )
       n++
     }
-    console.log(`\n✓ DS gravado: ${n} motoristas [${dataPtBr}]`)
+
+    // checkpoint do DS (burn-down)
+    const baseIds = [...new Set(valid0.map((it) => baseId.get(it.baseSlug)!))]
+    await recordDsCheckpoints(client, baseIds, `DS ${horaHoje()}`, dataPtBr)
+    console.log(`\n✓ DS gravado: ${n} motoristas [${dataPtBr}] | checkpoint p/ ${baseIds.length} base(s)`)
   } finally {
     await client.end()
   }

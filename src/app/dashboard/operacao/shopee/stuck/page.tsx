@@ -2,10 +2,15 @@ import { BoxesIcon, CheckCircle2Icon, MapPinIcon, UsersIcon } from "lucide-react
 
 import { KpiCard } from "@/components/kpi-card"
 import { ShopeeSubtabShell } from "@/components/shopee/subtab-shell"
+import { StuckCharts } from "@/components/shopee/stuck-charts"
 import { StuckTable } from "@/components/shopee/stuck-table"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { effectiveBases, parseShopeeFilters, SHOPEE_SLUG } from "@/lib/shopee"
-import { computeStuckKpis, getStuckPackages } from "@/lib/shopee/stuck-queries"
+import {
+  computeStuckKpis,
+  getStuckCheckpoints,
+  getStuckPackages,
+} from "@/lib/shopee/stuck-queries"
 
 export default async function StuckPage({
   searchParams,
@@ -14,7 +19,13 @@ export default async function StuckPage({
 }) {
   const filters = parseShopeeFilters(await searchParams)
   const op = await getOperacaoBySlug(SHOPEE_SLUG)
-  const rows = op ? await getStuckPackages(op.id, effectiveBases(filters)) : []
+  const slugs = effectiveBases(filters)
+  const [rows, points] = op
+    ? await Promise.all([
+        getStuckPackages(op.id, slugs),
+        getStuckCheckpoints(op.id, slugs),
+      ])
+    : [[], []]
   const kpi = computeStuckKpis(rows)
 
   return (
@@ -28,6 +39,8 @@ export default async function StuckPage({
         <KpiCard icon={UsersIcon} label="Motoristas" value={kpi.motoristas} color="#0ea5e9" />
         <KpiCard icon={MapPinIcon} label="Bases" value={kpi.bases} color="#a78bfa" />
       </div>
+
+      <StuckCharts points={points} kpi={kpi} />
 
       <StuckTable rows={rows} />
     </ShopeeSubtabShell>

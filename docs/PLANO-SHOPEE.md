@@ -328,8 +328,10 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Tabela paginada + busca + esconder entregues (`src/components/shopee/stuck-table.tsx`)
 - [x] Export de IDs p/ clipboard (toast via sonner; `Toaster` montado no dashboard layout)
 - [x] KPIs da subtab (Stuck ativos / Entregues / Motoristas / Bases)
-- [ ] Upload incremental por CSV (stuck_track) com diff + confirmação — **próximo**
-- [ ] Gráficos da subtab (tendência / por status / por base)
+- [x] Ingestão do tracking (stuck_track CSV): atualiza status/motorista, marca Delivered sem deletar (`scripts/import-stuck-track.ts`, parser `src/lib/shopee/csv.ts`)
+- [x] Checkpoints + 2 gráficos: **burn-down** (% ainda stuck por upload) + **monitor** (stuck vs resolvidos, donut com %) — `sql/14`, `src/components/shopee/stuck-charts.tsx`
+- [ ] Upload incremental **in-app** com diff + confirmação (hoje é via script) — Fase 6
+- [ ] Gráficos extras (por status / por base) — opcional
 
 ### Fase 4 — SLA e DS
 - [ ] Validar fluxos [§6](#6-fluxos-a-validar-sla-e-ds) com o Pedro
@@ -381,6 +383,8 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Base XPT-SMT-01 criada | ✅ `sql/11_base_sao_mateus.sql` (faltava no seed) |
 | 2026-06-08 | **Fase 3 (parcial)** — Stuck: backlog + dashboard | ✅ 4.284 stuck importados; subtab com KPIs, tabela (busca/paginação/esconder-entregues) e export de IDs |
 | 2026-06-08 | Backup pós-carga (backlog) | ✅ `backups/2026-06-08T03-32-42-611Z` (shopee_package: 4284) |
+| 2026-06-08 | Cidades nos labels das bases | ✅ `sql/13` (todas as 6 bases) |
+| 2026-06-08 | Tracking + checkpoints + 2 gráficos | ✅ `sql/14`, `import-stuck-track.ts`, `stuck-charts.tsx` (burn-down 100%→99.98% — raso pois CSVs são da mesma manhã) |
 
 ---
 

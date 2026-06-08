@@ -69,6 +69,60 @@ export async function getStuckPackages(
   }))
 }
 
+export type CheckpointPoint = {
+  seq: number
+  label: string
+  total: number
+  ainda: number
+  resolv: number
+  pct: number // % ainda em stuck
+}
+
+type EmbeddedCheckpoint = {
+  seq: number
+  label: string
+  total: number
+  ainda_stuck: number
+  resolvidos: number
+  base: { slug: string; operacao_id: string } | null
+}
+
+/** Série de burn-down: % ainda stuck por checkpoint (upload), agregado nas bases. */
+export async function getStuckCheckpoints(
+  operacaoId: string,
+  baseSlugs: string[] = [],
+): Promise<CheckpointPoint[]> {
+  const sb = createAdminClient()
+  let q = sb
+    .from("shopee_stuck_checkpoint")
+    .select("seq, label, total, ainda_stuck, resolvidos, base!inner(slug, operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .order("seq")
+  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
+
+  const { data, error } = await q
+  if (error) throw new Error(`getStuckCheckpoints: ${error.message}`)
+
+  const map = new Map<number, { label: string; total: number; ainda: number; resolv: number }>()
+  for (const r of (data ?? []) as unknown as EmbeddedCheckpoint[]) {
+    const m = map.get(r.seq) ?? { label: r.label, total: 0, ainda: 0, resolv: 0 }
+    m.total += r.total
+    m.ainda += r.ainda_stuck
+    m.resolv += r.resolvidos
+    map.set(r.seq, m)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([seq, m]) => ({
+      seq,
+      label: m.label,
+      total: m.total,
+      ainda: m.ainda,
+      resolv: m.resolv,
+      pct: m.total ? Number(((m.ainda / m.total) * 100).toFixed(2)) : 0,
+    }))
+}
+
 export type StuckKpis = {
   total: number
   ativos: number

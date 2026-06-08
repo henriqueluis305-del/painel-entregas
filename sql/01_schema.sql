@@ -258,3 +258,20 @@ create table if not exists shopee_stuck_snapshot (
   unique (base_id, data_pt_br)
 );
 create index if not exists idx_shopee_stuck_snapshot_base on shopee_stuck_snapshot(base_id, ts);
+
+-- checkpoint por upload (burn-down: % ainda stuck ao longo dos uploads do dia)
+create table if not exists shopee_stuck_checkpoint (
+  id          bigserial primary key,
+  base_id     uuid not null references base(id) on delete cascade,
+  upload_id   uuid references upload(id) on delete set null,
+  seq         integer not null,                 -- 0 = backlog
+  data_pt_br  text not null,
+  ts          timestamptz not null default now(),
+  label       text not null,
+  total       integer not null default 0,
+  ainda_stuck integer not null default 0,
+  resolvidos  integer not null default 0,
+  created_at  timestamptz not null default now(),
+  unique (base_id, data_pt_br, seq)
+);
+create index if not exists idx_shopee_stuck_ckpt_base on shopee_stuck_checkpoint(base_id, data_pt_br, seq);

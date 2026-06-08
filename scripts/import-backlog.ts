@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url"
 
 import { resolveDriver, dedupeById, type ParsedDriver } from "../src/lib/shopee/drivers.ts"
 import { isStuck, parseDiasPreso, resolveBaseSlug } from "../src/lib/shopee/stuck.ts"
+import { dataPtBrHoje, recordCheckpoints } from "./_checkpoints.ts"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, "..")
@@ -205,6 +206,12 @@ async function main() {
       evt += res.rowCount ?? 0
     }
     console.log(`eventos inseridos: ${evt}`)
+
+    // checkpoint inicial (seq por base/dia)
+    const dataPtBr = dataPtBrHoje()
+    const baseIds = [...new Set(rows.map((r) => baseId.get(r.baseSlug)!))]
+    await recordCheckpoints(client, baseIds, "Backlog", dataPtBr)
+    console.log(`checkpoint "Backlog" gravado p/ ${baseIds.length} base(s) [${dataPtBr}]`)
     console.log("\n✓ backlog importado")
   } finally {
     await client.end()

@@ -1,6 +1,6 @@
 "use client"
 
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 
 import {
   ChartContainer,
@@ -50,8 +50,17 @@ export function BurnDownChart({
           fill="var(--color-pct)"
           fillOpacity={0.2}
           strokeWidth={2}
-          dot
-        />
+          dot={{ r: 3 }}
+        >
+          <LabelList
+            dataKey="pct"
+            position="top"
+            offset={10}
+            fontSize={11}
+            className="fill-foreground"
+            formatter={(v) => `${String(v)}${suffix}`}
+          />
+        </Area>
       </AreaChart>
     </ChartContainer>
   )

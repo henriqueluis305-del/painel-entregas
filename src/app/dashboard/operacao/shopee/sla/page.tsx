@@ -43,7 +43,7 @@ export default async function SlaPage({
   const [sla, evo] = op
     ? await Promise.all([getSlaData(op.id, slugs), getSlaEvolution(op.id, slugs)])
     : [
-        { day: null, total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0, pct: 0, perBase: [] },
+        { day: null, total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0, pct: 0, perBase: [], porStatus: [] },
         [],
       ]
   const meta = faltamMeta(sla.total, sla.entregues)
@@ -87,6 +87,37 @@ export default async function SlaPage({
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Detalhamento por status</CardTitle>
+              <CardDescription>{sla.porStatus.length} status no período</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-hidden rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Qtd</TableHead>
+                      <TableHead className="text-right">%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sla.porStatus.map((s) => (
+                      <TableRow key={s.status}>
+                        <TableCell className="font-mono text-xs">{s.status}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{s.categoria}</TableCell>
+                        <TableCell className="text-right tabular-nums">{s.count.toLocaleString("pt-BR")}</TableCell>
+                        <TableCell className="text-right tabular-nums">{s.pct}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
 
           {sla.perBase.length > 1 && (
             <Card>

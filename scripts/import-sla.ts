@@ -52,7 +52,10 @@ async function main() {
     }
     console.log(`  ${path.basename(f)}: ${objs.length} linhas`)
   }
-  const b = calcSla([...byCode.values()])
+  const statuses = [...byCode.values()]
+  const b = calcSla(statuses)
+  const porStatus: Record<string, number> = {}
+  for (const s of statuses) porStatus[s || "(vazio)"] = (porStatus[s || "(vazio)"] ?? 0) + 1
   console.log(`\nTOTAL linhas=${totalRows} | Order IDs distintos=${byCode.size} | base=${baseSlug}`)
   console.log(
     `total=${b.total} entregues=${b.entregues} SLA=${b.pct}% | rota=${b.emRota} oc=${b.ocorrencias} falt=${b.faltantes} outros=${b.outros}`,
@@ -75,13 +78,13 @@ async function main() {
 
     await client.query(
       `insert into shopee_sla_record
-         (base_id, data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         (base_id, data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct, por_status)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        on conflict (base_id, data_pt_br) do update set
          total=excluded.total, entregues=excluded.entregues, em_rota=excluded.em_rota,
          ocorrencias=excluded.ocorrencias, faltantes=excluded.faltantes, outros=excluded.outros,
-         sla_pct=excluded.sla_pct, updated_at=now()`,
-      [baseId, dataPtBr, b.total, b.entregues, b.emRota, b.ocorrencias, b.faltantes, b.outros, b.pct],
+         sla_pct=excluded.sla_pct, por_status=excluded.por_status, updated_at=now()`,
+      [baseId, dataPtBr, b.total, b.entregues, b.emRota, b.ocorrencias, b.faltantes, b.outros, b.pct, JSON.stringify(porStatus)],
     )
     console.log(`\n✓ SLA gravado p/ ${baseSlug} [${dataPtBr}]`)
   } finally {

@@ -1,6 +1,7 @@
 import "server-only"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { STATUS_MAP } from "@/lib/shopee/sla"
 
 export type SlaBaseRow = {
   base_slug: string
@@ -23,8 +24,11 @@ type EmbeddedSla = {
   faltantes: number
   outros: number
   sla_pct: number
+  por_status: Record<string, number> | null
   base: { slug: string; label: string; operacao_id: string } | null
 }
+
+export type StatusRow = { status: string; categoria: string; count: number; pct: number }
 
 export type SlaData = {
   day: string | null
@@ -36,6 +40,7 @@ export type SlaData = {
   outros: number
   pct: number
   perBase: SlaBaseRow[]
+  porStatus: StatusRow[]
 }
 
 function pct(entregues: number, total: number) {
@@ -54,13 +59,13 @@ export async function getSlaData(
     .order("updated_at", { ascending: false })
     .limit(1)
   const day = (last ?? [])[0]?.data_pt_br ?? null
-  const empty: SlaData = { day: null, total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0, pct: 0, perBase: [] }
+  const empty: SlaData = { day: null, total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0, pct: 0, perBase: [], porStatus: [] }
   if (!day) return empty
 
   let q = sb
     .from("shopee_sla_record")
     .select(
-      "data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct, base!inner(slug, label, operacao_id)",
+      "data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct, por_status, base!inner(slug, label, operacao_id)",
     )
     .eq("base.operacao_id", operacaoId)
     .eq("data_pt_br", day)
@@ -96,7 +101,23 @@ export async function getSlaData(
     { total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0 },
   )
 
-  return { day, ...agg, pct: pct(agg.entregues, agg.total), perBase }
+  // quebra por status (merge do por_status de todas as bases do escopo)
+  const statusMap = new Map<string, number>()
+  for (const r of rows) {
+    for (const [st, n] of Object.entries(r.por_status ?? {})) {
+      statusMap.set(st, (statusMap.get(st) ?? 0) + n)
+    }
+  }
+  const porStatus: StatusRow[] = [...statusMap.entries()]
+    .map(([status, count]) => ({
+      status,
+      categoria: STATUS_MAP[status] ?? "Outros",
+      count,
+      pct: agg.total ? Number(((count / agg.total) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  return { day, ...agg, pct: pct(agg.entregues, agg.total), perBase, porStatus }
 }
 
 export type SlaPoint = { label: string; pct: number }

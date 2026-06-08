@@ -334,10 +334,10 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [ ] Gráficos extras (por status / por base) — opcional
 
 ### Fase 4 — SLA e DS
-- [ ] Validar fluxos [§6](#6-fluxos-a-validar-sla-e-ds) com o Pedro
-- [ ] Parser CSV SLA + cálculo + upsert `sla_ds_record`
-- [ ] Parser xlsx DS (formato real) + cálculo
-- [ ] Cards/gráficos das subtabs
+- [x] Validar fluxos [§6](#6-fluxos-a-validar-sla-e-ds) com o Pedro — confirmado via main + print (SLA=entregues/total; DS=Σent/Σsaiu)
+- [x] **DS real** (`sql/16`, `src/lib/shopee/ds.ts`, `scripts/import-ds.ts`): xlsx `fleets` tem 21 colunas (F=Assigned, I=Delivered, K=Delivering, M=Failed, C=Driver Station→base). Subtab DS com gauge + cards + tabela. **Bateu exato com o print: 92 motoristas, DS 84,3%, 9013 entregues**
+- [ ] Parser CSV SLA + cálculo + upsert `sla_ds_record` — **próximo** (entregues/total + categorias STATUS_MAP + faltam p/ meta 98%)
+- [ ] Gráficos de evolução (SLA/DS) — histórico via snapshots
 
 ### Fase 5 — Geral + Histórico
 - [ ] Consolidado no Geral (SLA/DS/Stuck + PNR placeholder)
@@ -394,6 +394,7 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Cidades nos labels das bases | ✅ `sql/13` (todas as 6 bases) |
 | 2026-06-08 | Tracking + checkpoints + 2 gráficos | ✅ `sql/14`, `import-stuck-track.ts`, `stuck-charts.tsx` (burn-down 100%→99.98% — raso pois CSVs são da mesma manhã) |
 | 2026-06-08 | Limpeza diária da visão (adiantada da Fase 8) | ✅ `sql/15` (operacao.config + last_backlog_date), subtab Config (ADM) c/ toggle, Stuck filtra pelo dia mais recente quando ligado |
+| 2026-06-08 | **DS real** (subtab + import) | ✅ `sql/16`, `import-ds.ts`; fleets tem 21 col reais (read_only do openpyxl tinha enganado); base na col C. Bateu EXATO com o print: 92 mot., DS 84,3%, 9013 ent |
 
 ---
 

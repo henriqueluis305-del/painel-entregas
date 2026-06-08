@@ -343,10 +343,12 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Consolidado no Geral (SLA/DS/Stuck reais + cards clicáveis p/ subtabs + espaço PNR-WIP) — `geral/page.tsx`
 - [ ] Histórico com filtros e tendências (depende de mais dias de snapshot)
 
-### Fase 6 — Upload central + robustez
-- [ ] Bucket privado Storage + pipeline com progresso
-- [ ] Subtab `Uploads` (ADM): histórico, re-upload
-- [ ] Generalizar componente de upload p/ outras operações
+### Fase 6 — Upload central + robustez ✅ (core)
+- [x] Subtab `Uploads` (ADM) com upload in-app dos 4 tipos (Backlog, Tracking, DS, SLA) — `uploads/page.tsx` + `components/shopee/uploader.tsx`
+- [x] Fluxo **analisar → diff (resumo) → confirmar** via server actions (`uploads/actions.ts`), reusando os parsers/SQL dos scripts (pg via `src/lib/pg.ts`)
+- [x] `serverActions.bodySizeLimit: 30mb` p/ arquivos grandes; `@types/pg` adicionado
+- [ ] (futuro) bucket Storage p/ guardar o cru + barra de progresso real (hoje é resumo após processar)
+- [ ] (futuro) histórico de uploads + generalizar p/ outras operações
 
 ### Fase 7 — PDF A4
 - [ ] ⚠ Decidir lib ([§2.4](#24-biblioteca-de-pdf--aprovação-custoinfra)) e instalar
@@ -397,6 +399,9 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | **DS real** (subtab + import) | ✅ `sql/16`, `import-ds.ts`; fleets tem 21 col reais (read_only do openpyxl tinha enganado); base na col C. Bateu EXATO com o print: 92 mot., DS 84,3%, 9013 ent |
 | 2026-06-08 | DS: 3 gráficos + fixes + sorts | ✅ burn-down DS (`sql/17` checkpoints) + meia-lua + donut composição. Tooltip do donut corrigido (texto via Label SVG); meia-lua reposicionada (overlay na base). Sort nas tabelas Stuck e DS |
 | 2026-06-08 | **SLA real** (subtab) | ✅ `sql/18`, `sla.ts`, `import-sla.ts`. Arquivo inteiro = base puxada. Gauge + 6 stats + evolução + por base. Bateu EXATO com o print (97,8%, falt 43, outros 256). **Fase 4 fechada** |
+| 2026-06-08 | SLA: tabela de status + rótulos nos gráficos | ✅ `sql/19` por_status; rótulo de valor nos pontos do burn-down/evolução |
+| 2026-06-08 | **Geral consolidado** (Fase 5) | ✅ SLA/DS/Stuck reais + cards clicáveis + espaço PNR |
+| 2026-06-08 | **Fase 6 — Upload in-app** | ✅ subtab Uploads (ADM): 4 tipos, analisar→diff→confirmar (server actions + pg). bodySizeLimit 30mb, @types/pg |
 
 ---
 

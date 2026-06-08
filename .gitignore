@@ -29,3 +29,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# backups do banco (read-only dumps; podem conter dados)
+/backups/
+
+# dados de trabalho local (CSV/XLSX com PII de compradores — NUNCA commitar)
+/data/

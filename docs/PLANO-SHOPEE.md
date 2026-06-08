@@ -353,10 +353,16 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [ ] Rota `/print` com CSS A4 + geração do arquivo
 - [ ] Botão "Export PDF" respeitando filtros
 
-### Fase 8 — Cron 23:30 + Config
+### Fase 8 — Cron 23:30 + Config + ciclo diário da visão
 - [ ] ⚠ Definir host do cron ([§2.5](#25-onde-roda-o-cron-das-2330--aprovação-infra))
 - [ ] Job de snapshot diário (idempotente, 1/base/dia)
 - [ ] Tabela `cron_config` + seção em Configurações (hora/forçar/on-off/histórico)
+- [ ] **"Limpeza diária da VISÃO" (não do DB!)** — pedido do Pedro:
+  - DB continua **acumulativo, nunca deleta**. O que "zera" é a **visão padrão do dash**: no início do dia (pós-snapshot), o Stuck mostra só o **backlog novo do dia** ("limpo").
+  - Requer marcar a **membresia por dia** do pacote (qual backlog/dia ele pertence) — ex.: `last_backlog_date` no `shopee_package` ou tabela de membership por dia. Pacote preso vários dias reaparece no backlog de cada dia.
+  - **Toggle em Configurações da operação**: ligar/desligar a limpeza diária da visão (desligado = mostra acumulado).
+  - **Filtro "a partir do dia X"** na barra de filtros (ver dados de um dia específico em diante).
+- [ ] **Corrigir denominador do burn-down** p/ multi-dia: usar o **conjunto do dia** (backlog do dia), não `count(*)` acumulado de `shopee_package`.
 
 ### Fase 9 — PNR (quando vierem os dados)
 - [ ] Modelo `shopee_pnr` + ingestão

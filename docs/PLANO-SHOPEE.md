@@ -61,7 +61,7 @@ Construir a **página da operação Shopee** com:
 > - **Cron** (§2.5): **Vercel Cron** (granularidade fixa → rota checa `cron_config.hora` no DB).
 > - **Migrations** (§2.1): seguir `sql/` + scripts `.mjs`; ignorar `alembic_version`.
 > - **Início**: Fase 1 (esqueleto da página).
-> Ainda pendente de OK explícito antes de rodar: **criar as tabelas do Stuck** (§2.3) e a **migração da `driver`** (§2.2).
+> ~~Ainda pendente de OK explícito antes de rodar: criar as tabelas do Stuck (§2.3) e a migração da `driver` (§2.2).~~ **✅ Aprovado e APLICADO em 2026-06-08** (`sql/10_shopee_stuck.sql`).
 
 ### 2.1 Ferramenta de migrations do DB (quase decidido)
 A `alembic_version` no DB é órfã (resquício do plano Reflex). O projeto **já versiona via `sql/` + scripts `.mjs`** (`scripts/migrate-config.mjs`, `fix-defaults.mjs`).
@@ -313,12 +313,12 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Placeholder PNR (WIP) + espaço PNR no Geral
 
 ### Fase 2 — Motoristas
-- [ ] ⚠ Migração da tabela `driver` (ID externo como PK) — após [§2.2](#22-identidade-do-motorista--aprovação)
+- [x] ⚠ Migração da tabela `driver` (ID externo como PK, +`spx_driver_id`, global da operação) — `sql/10_shopee_stuck.sql`
 - [ ] Resolver de motorista (regex `[ID] Nome`, upsert)
 - [ ] Importar `fleets`/backlog → cadastro automático
 
 ### Fase 3 — Stuck (a subtab mais completa)
-- [ ] ⚠ Criar tabelas `shopee_package`, `shopee_package_event`, `shopee_stuck_snapshot`
+- [x] ⚠ Criar tabelas `shopee_package`, `shopee_package_event`, `shopee_stuck_snapshot` — `sql/10_shopee_stuck.sql` (testado: upsert marca Delivered sem deletar)
 - [ ] Parser de backlog xlsx + regra de "é stuck" (após confirmar ❓)
 - [ ] Upload incremental por CSV com diff + confirmação
 - [ ] Tabela paginada + busca + esconder entregues
@@ -366,6 +366,9 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Este plano | ✅ criado |
 | 2026-06-08 | Decisões §2 (driver/stuck/PDF/cron/migrations/início) | ✅ definidas com o Pedro |
 | 2026-06-08 | **Fase 1** — esqueleto da página Shopee | ✅ rotas + navbar + filtros + guard ADM (tsc/eslint limpos, rotas 307→login) |
+| 2026-06-08 | Ajustes UI (scroll fantasma + filtros abaixo do subtítulo) | ✅ |
+| 2026-06-08 | **DB**: driver reformulado + tabelas de Stuck (`sql/10`) | ✅ aplicado + smoke test (insert/upsert/rollback) + `sql/01` atualizado |
+| 2026-06-08 | Backup pré-carga (pós-migração) | ✅ `backups/2026-06-08T02-42-24-650Z` (16 tabelas) |
 
 ---
 

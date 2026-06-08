@@ -66,19 +66,24 @@ create index if not exists idx_user_base_base on user_base(base_id);
 -- ---------------------------------------------------------------------------
 -- Motoristas
 -- ---------------------------------------------------------------------------
+-- driver.id = ID externo das planilhas ([99067] em "Latest User Name"/fleets).
+-- Motorista é GLOBAL da operação. spx_driver_id = "Driver ID" do CSV de SLA.
+-- (No DB real, criado pelo SQLModel, os ids são varchar — ver sql/10_shopee_stuck.sql.)
 create table if not exists driver (
-  id             uuid primary key default gen_random_uuid(),
-  base_id        uuid not null references base(id) on delete cascade,
+  id             text primary key,                  -- ID externo [99067]
+  operacao_id    uuid not null references operacao(id) on delete cascade,
   name           text not null,
   normalized_key text not null,                     -- lowercase + trim p/ match
+  spx_driver_id  text,                              -- Driver ID do CSV de SLA
   documento      text,
   telefone       text,
   active         boolean not null default true,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
-  unique (base_id, normalized_key)
+  unique (operacao_id, normalized_key)
 );
-create index if not exists idx_driver_base on driver(base_id);
+create index if not exists idx_driver_operacao on driver(operacao_id);
+create index if not exists idx_driver_spx      on driver(spx_driver_id);
 
 -- ---------------------------------------------------------------------------
 -- Upload (registro de cada arquivo; não guarda o blob, só métricas)
@@ -88,7 +93,10 @@ create table if not exists upload (
   user_id       text references app_user(id),
   base_id       uuid not null references base(id) on delete cascade,
   kind          text not null
-                  check (kind in ('CSV_SLA','XLSX_DS','XLSX_SLA_DS_HISTORY')),
+                  check (kind in (
+                    'CSV_SLA','XLSX_DS','XLSX_SLA_DS_HISTORY',
+                    'XLSX_BACKLOG','CSV_STUCK_TRACK','XLSX_FLEETS','CSV_PNR'
+                  )),
   filename      text not null,
   size_bytes    integer not null default 0,
   rows_parsed   integer not null default 0,
@@ -106,7 +114,7 @@ create table if not exists package (
   id            uuid primary key default gen_random_uuid(),
   upload_id     uuid not null references upload(id) on delete cascade,
   base_id       uuid not null references base(id) on delete cascade,
-  driver_id     uuid references driver(id),
+  driver_id     text references driver(id),
   codigo        text not null,
   status        text not null
                   check (status in ('ENTREGUE','DEVOLUCAO','INTERCEPTADO','DEVOLUCAO_LH')),
@@ -147,7 +155,7 @@ create index if not exists idx_snapshot_base_ts on snapshot(base_id, ts);
 create table if not exists snapshot_driver (
   id          uuid primary key default gen_random_uuid(),
   snapshot_id uuid not null references snapshot(id) on delete cascade,
-  driver_id   uuid references driver(id),
+  driver_id   text references driver(id),
   driver_name text not null,                        -- congelado p/ histórico
   saiu        integer not null default 0,
   entregues   integer not null default 0,
@@ -201,3 +209,52 @@ create table if not exists cep_cache (
   uf         text,
   fetched_at timestamptz not null default now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Shopee — Stuck (ver sql/10_shopee_stuck.sql para a migração aplicada)
+-- shopee_package: estado ATUAL de cada pacote (upsert por base+codigo).
+-- Nunca deletar; entregue vira status=Delivered + delivered_at.
+-- ---------------------------------------------------------------------------
+create table if not exists shopee_package (
+  id             bigserial primary key,
+  base_id        uuid not null references base(id) on delete cascade,
+  codigo         text not null,                      -- Shipment ID / Order ID
+  status         text not null,                      -- status Shopee cru
+  driver_id      text references driver(id),
+  dias_preso     numeric(6,2),                       -- LM Hub Days
+  agency         text,
+  first_seen_at  timestamptz not null default now(),
+  last_status_at timestamptz not null default now(),
+  delivered_at   timestamptz,
+  updated_at     timestamptz not null default now(),
+  unique (base_id, codigo)
+);
+create index if not exists idx_shopee_package_base   on shopee_package(base_id, status);
+create index if not exists idx_shopee_package_driver on shopee_package(driver_id);
+
+-- histórico append-only de mudanças de status (evolução / auditoria)
+create table if not exists shopee_package_event (
+  id               bigserial primary key,
+  package_id       bigint not null references shopee_package(id) on delete cascade,
+  status           text not null,
+  dias_preso       numeric(6,2),
+  driver_id        text references driver(id),
+  source_upload_id uuid references upload(id),
+  observed_at      timestamptz not null default now()
+);
+create index if not exists idx_shopee_package_event_pkg on shopee_package_event(package_id, observed_at);
+
+-- snapshot diário do conjunto stuck (cron 23:30) — 1 por (base, dia)
+create table if not exists shopee_stuck_snapshot (
+  id               bigserial primary key,
+  base_id          uuid not null references base(id) on delete cascade,
+  data_pt_br       text not null,
+  ts               timestamptz not null default now(),
+  total_stuck      integer not null default 0,
+  entregues_no_dia integer not null default 0,
+  por_status       jsonb,
+  por_motorista    jsonb,
+  created_at       timestamptz not null default now(),
+  unique (base_id, data_pt_br)
+);
+create index if not exists idx_shopee_stuck_snapshot_base on shopee_stuck_snapshot(base_id, ts);

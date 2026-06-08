@@ -333,11 +333,11 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [ ] Upload incremental **in-app** com diff + confirmação (hoje é via script) — Fase 6
 - [ ] Gráficos extras (por status / por base) — opcional
 
-### Fase 4 — SLA e DS
+### Fase 4 — SLA e DS ✅
 - [x] Validar fluxos [§6](#6-fluxos-a-validar-sla-e-ds) com o Pedro — confirmado via main + print (SLA=entregues/total; DS=Σent/Σsaiu)
-- [x] **DS real** (`sql/16`, `src/lib/shopee/ds.ts`, `scripts/import-ds.ts`): xlsx `fleets` tem 21 colunas (F=Assigned, I=Delivered, K=Delivering, M=Failed, C=Driver Station→base). Subtab DS com gauge + cards + tabela. **Bateu exato com o print: 92 motoristas, DS 84,3%, 9013 entregues**
-- [ ] Parser CSV SLA + cálculo + upsert `sla_ds_record` — **próximo** (entregues/total + categorias STATUS_MAP + faltam p/ meta 98%)
-- [ ] Gráficos de evolução (SLA/DS) — histórico via snapshots
+- [x] **DS real** (`sql/16`/`17`, `ds.ts`, `import-ds.ts`): fleets 21 col (F=Assigned, I=Delivered, K=Delivering, M=Failed, C=Station→base). Subtab DS: 3 gráficos (burn-down/meia-lua/donut) + cards + tabela ordenável. **Bateu exato: 92 mot., DS 84,3%**
+- [x] **SLA real** (`sql/18`, `sla.ts`, `import-sla.ts`): CSV export_return_order, dedupe por Order ID, **arquivo inteiro = a base puxada** (não é por estação). `STATUS_MAP` portado. Subtab SLA: gauge + 6 stats (incl. "faltam p/ 98%") + evolução + SLA por base. **Bateu exato: 21356, SLA 97,8%, falt 43, outros 256**
+- [x] Gráfico de evolução SLA (por dia) + burn-down DS (por upload)
 
 ### Fase 5 — Geral + Histórico
 - [ ] Consolidado no Geral (SLA/DS/Stuck + PNR placeholder)
@@ -395,7 +395,8 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Tracking + checkpoints + 2 gráficos | ✅ `sql/14`, `import-stuck-track.ts`, `stuck-charts.tsx` (burn-down 100%→99.98% — raso pois CSVs são da mesma manhã) |
 | 2026-06-08 | Limpeza diária da visão (adiantada da Fase 8) | ✅ `sql/15` (operacao.config + last_backlog_date), subtab Config (ADM) c/ toggle, Stuck filtra pelo dia mais recente quando ligado |
 | 2026-06-08 | **DS real** (subtab + import) | ✅ `sql/16`, `import-ds.ts`; fleets tem 21 col reais (read_only do openpyxl tinha enganado); base na col C. Bateu EXATO com o print: 92 mot., DS 84,3%, 9013 ent |
-| 2026-06-08 | DS: 3 gráficos + fixes + sorts | ✅ burn-down DS (`sql/17` checkpoints) + meia-lua (sem clip, texto via SVG Label) + donut composição. Tooltip do donut corrigido (texto central via Label SVG). Sort nas tabelas Stuck e DS |
+| 2026-06-08 | DS: 3 gráficos + fixes + sorts | ✅ burn-down DS (`sql/17` checkpoints) + meia-lua + donut composição. Tooltip do donut corrigido (texto via Label SVG); meia-lua reposicionada (overlay na base). Sort nas tabelas Stuck e DS |
+| 2026-06-08 | **SLA real** (subtab) | ✅ `sql/18`, `sla.ts`, `import-sla.ts`. Arquivo inteiro = base puxada. Gauge + 6 stats + evolução + por base. Bateu EXATO com o print (97,8%, falt 43, outros 256). **Fase 4 fechada** |
 
 ---
 

@@ -5,11 +5,12 @@ import { Cell, Pie, PieChart } from "recharts"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 
 const cfg = {
-  ok: { label: "Entregues", color: "#22c55e" },
+  ok: { label: "OK", color: "#22c55e" },
   rest: { label: "Restante", color: "#ef4444" },
 } satisfies ChartConfig
 
-export function DsGauge({ pct, saiu }: { pct: number; saiu: number }) {
+/** Medidor meia-lua (semicírculo) com % grande e legenda na base do arco. */
+export function HalfGauge({ pct, sub }: { pct: number; sub: string }) {
   const p = Math.max(0, Math.min(100, pct))
   const data = [
     { k: "ok", value: p },
@@ -37,9 +38,7 @@ export function DsGauge({ pct, saiu }: { pct: number; saiu: number }) {
       </ChartContainer>
       <div className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-col items-center">
         <span className="text-3xl leading-none font-bold tabular-nums">{pct}%</span>
-        <span className="text-muted-foreground mt-1 text-xs">
-          {saiu.toLocaleString("pt-BR")} encaminhados
-        </span>
+        <span className="text-muted-foreground mt-1 text-xs">{sub}</span>
       </div>
     </div>
   )

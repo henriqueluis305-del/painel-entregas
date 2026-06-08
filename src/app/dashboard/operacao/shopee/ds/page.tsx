@@ -7,7 +7,7 @@ import {
 
 import { KpiCard } from "@/components/kpi-card"
 import { BurnDownChart } from "@/components/shopee/burn-down-chart"
-import { DsGauge } from "@/components/shopee/ds-gauge"
+import { HalfGauge } from "@/components/shopee/half-gauge"
 import { DsTable } from "@/components/shopee/ds-table"
 import { DonutLegend, MiniDonut, type DonutSegment } from "@/components/shopee/mini-donut"
 import { ShopeeSubtabShell } from "@/components/shopee/subtab-shell"
@@ -81,7 +81,7 @@ export default async function DsPage({
                 <CardDescription>entregues / encaminhados</CardDescription>
               </CardHeader>
               <CardContent>
-                <DsGauge pct={t.pct} saiu={t.saiu} />
+                <HalfGauge pct={t.pct} sub={`${t.saiu.toLocaleString("pt-BR")} encaminhados`} />
               </CardContent>
             </Card>
 

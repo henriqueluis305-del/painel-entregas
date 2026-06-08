@@ -65,7 +65,11 @@ export default function LoginPage() {
           <CardDescription>Entre com suas credenciais</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form
+            method="post"
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-4"
+          >
             <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
               <div className="relative">

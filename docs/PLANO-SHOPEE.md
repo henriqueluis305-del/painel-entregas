@@ -315,10 +315,11 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 - [x] Guard de ADM para subtab `Uploads` (redirect server-side)
 - [x] Placeholder PNR (WIP) + espaço PNR no Geral
 
-### Fase 2 — Motoristas
+### Fase 2 — Motoristas ✅ (fleets)
 - [x] ⚠ Migração da tabela `driver` (ID externo como PK, +`spx_driver_id`, global da operação) — `sql/10_shopee_stuck.sql`
-- [ ] Resolver de motorista (regex `[ID] Nome`, upsert)
-- [ ] Importar `fleets`/backlog → cadastro automático
+- [x] Resolver de motorista (`src/lib/shopee/drivers.ts`): ID de `[colchetes]` ou coluna `Driver ID`, filtro de contas de sistema, dedupe; testado
+- [x] Importar `fleets` → cadastro automático (`scripts/import-fleets.ts`, exceljs): **92 motoristas**, idempotente
+- [ ] Importar motoristas do backlog/CSV vem junto com a ingestão de Stuck (Fase 3)
 
 ### Fase 3 — Stuck (a subtab mais completa)
 - [x] ⚠ Criar tabelas `shopee_package`, `shopee_package_event`, `shopee_stuck_snapshot` — `sql/10_shopee_stuck.sql` (testado: upsert marca Delivered sem deletar)
@@ -372,6 +373,9 @@ Adicionar em `dashboard` uma área de **Configurações** (ADM) com:
 | 2026-06-08 | Ajustes UI (scroll fantasma + filtros abaixo do subtítulo) | ✅ |
 | 2026-06-08 | **DB**: driver reformulado + tabelas de Stuck (`sql/10`) | ✅ aplicado + smoke test (insert/upsert/rollback) + `sql/01` atualizado |
 | 2026-06-08 | Backup pré-carga (pós-migração) | ✅ `backups/2026-06-08T02-42-24-650Z` (16 tabelas) |
+| 2026-06-08 | Verificação IDs motorista (1 sistema só) | ✅ 195/195 batem; `spx_driver_id` mantido por decisão |
+| 2026-06-08 | **Fase 2** — resolver + import do fleets | ✅ `src/lib/shopee/drivers.ts` + `scripts/import-fleets.ts` (exceljs); 92 motoristas carregados (idempotente) |
+| 2026-06-08 | Backup pós-carga | ✅ `backups/2026-06-08T03-19-35-730Z` (driver: 92) |
 
 ---
 

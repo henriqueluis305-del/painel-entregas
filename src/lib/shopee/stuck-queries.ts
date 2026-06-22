@@ -52,28 +52,38 @@ export async function getStuckPackages(
   const sb = createAdminClient()
   // limpeza diária: mostra só o backlog do dia mais recente (DB intacto)
   const day = opts.dailyReset ? await latestBacklogDate(sb, operacaoId) : null
+  const SELECT =
+    "codigo, status, dias_preso, agency, delivered_at, last_status_at, base!inner(slug, label, operacao_id), driver(id, name)"
 
-  // PostgREST/Supabase limita ~1000 linhas por request → pagina via range.
-  const PAGE = 1000
-  const all: EmbeddedRow[] = []
-  for (let from = 0; ; from += PAGE) {
-    let q = sb
-      .from("shopee_package")
-      .select(
-        "codigo, status, dias_preso, agency, delivered_at, last_status_at, base!inner(slug, label, operacao_id), driver(id, name)",
-      )
-      .eq("base.operacao_id", operacaoId)
-      .order("dias_preso", { ascending: false, nullsFirst: false })
-      .order("codigo") // desempate estável entre páginas
-      .range(from, from + PAGE - 1)
+  // builder reutilizável (mesmos filtros p/ contagem e p/ as páginas)
+  const build = (head: boolean) => {
+    let q = head
+      ? sb.from("shopee_package").select(SELECT, { count: "exact", head: true })
+      : sb.from("shopee_package").select(SELECT)
+    q = q.eq("base.operacao_id", operacaoId)
     if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
     if (day) q = q.eq("last_backlog_date", day)
+    return q
+  }
 
-    const { data, error } = await q
-    if (error) throw new Error(`getStuckPackages: ${error.message}`)
-    const batch = (data ?? []) as unknown as EmbeddedRow[]
-    all.push(...batch)
-    if (batch.length < PAGE) break
+  // 1 contagem + N páginas EM PARALELO (PostgREST limita ~1000/req).
+  const { count, error: cErr } = await build(true)
+  if (cErr) throw new Error(`getStuckPackages(count): ${cErr.message}`)
+  const total = count ?? 0
+  const PAGE = 1000
+  const pages = Math.ceil(total / PAGE)
+  const results = await Promise.all(
+    Array.from({ length: pages }, (_, i) =>
+      build(false)
+        .order("dias_preso", { ascending: false, nullsFirst: false })
+        .order("codigo")
+        .range(i * PAGE, i * PAGE + PAGE - 1),
+    ),
+  )
+  const all: EmbeddedRow[] = []
+  for (const r of results) {
+    if (r.error) throw new Error(`getStuckPackages: ${r.error.message}`)
+    all.push(...((r.data ?? []) as unknown as EmbeddedRow[]))
   }
 
   return all.map((r) => ({

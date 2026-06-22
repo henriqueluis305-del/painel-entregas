@@ -41,6 +41,14 @@ const todayBr = () =>
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const horaBr = () =>
   new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date())
+/** Hora HH:MM tirada do nome do arquivo (..._HH-MM-SS...), senão a hora atual. */
+function fileTime(files: File[]): string {
+  for (const f of files) {
+    const m = f.name.match(/_(\d{2})-(\d{2})-\d{2}/)
+    if (m) return `${m[1]}:${m[2]}`
+  }
+  return horaBr()
+}
 
 // ---------- leitura de arquivos ----------
 function getFiles(fd: FormData): File[] {
@@ -393,7 +401,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
              select id, status, null, driver_id from unnest($1::bigint[], $2::text[], $3::text[]) as u(id, status, driver_id)`,
             [ids, statuses, drv],
           )
-          await recordStuckCheckpoint(c, [...bases], `Tracking ${horaBr()}`, todayBr())
+          await recordStuckCheckpoint(c, [...bases], `Tracking ${fileTime(files)}`, todayBr())
         }
         const m = `Tracking aplicado: ${ids.length} pacotes atualizados.`
         await logUpload(c, email, "tracking", filenames, ids.length, m)
@@ -430,7 +438,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
              select $1::varchar,$2::integer,$3::varchar,$4::varchar, coalesce(sum(saiu),0), coalesce(sum(entregues),0), coalesce(sum(em_rota),0), coalesce(sum(ocorrencias),0)
              from shopee_ds_driver where base_id=$1::varchar and data_pt_br=$3::varchar
              on conflict (base_id, data_pt_br, seq) do update set saiu=excluded.saiu, entregues=excluded.entregues, em_rota=excluded.em_rota, ocorrencias=excluded.ocorrencias, ts=now()`,
-            [baseId, seq, dataPtBr, `DS ${horaBr()}`],
+            [baseId, seq, dataPtBr, `DS ${fileTime(files)}`],
           )
         }
         const m = `DS aplicado: ${valid.length} motoristas em ${baseIds.length} base(s).`

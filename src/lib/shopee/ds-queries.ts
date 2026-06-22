@@ -43,10 +43,21 @@ export async function getDsCheckpoints(
   baseSlugs: string[] = [],
 ): Promise<DsCheckpoint[]> {
   const sb = createAdminClient()
+  // burn-down do DIA mais recente
+  const { data: last } = await sb
+    .from("shopee_ds_checkpoint")
+    .select("data_pt_br, base!inner(operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .order("ts", { ascending: false })
+    .limit(1)
+  const day = (last ?? [])[0]?.data_pt_br as string | undefined
+  if (!day) return []
+
   let q = sb
     .from("shopee_ds_checkpoint")
     .select("seq, label, saiu, entregues, base!inner(slug, operacao_id)")
     .eq("base.operacao_id", operacaoId)
+    .eq("data_pt_br", day)
     .order("seq")
   if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
 

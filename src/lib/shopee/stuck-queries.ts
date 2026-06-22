@@ -124,10 +124,21 @@ export async function getStuckCheckpoints(
   baseSlugs: string[] = [],
 ): Promise<CheckpointPoint[]> {
   const sb = createAdminClient()
+  // burn-down é do DIA mais recente (senão a semana toda se mistura)
+  const { data: last } = await sb
+    .from("shopee_stuck_checkpoint")
+    .select("data_pt_br, base!inner(operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .order("ts", { ascending: false })
+    .limit(1)
+  const day = (last ?? [])[0]?.data_pt_br as string | undefined
+  if (!day) return []
+
   let q = sb
     .from("shopee_stuck_checkpoint")
     .select("seq, label, total, ainda_stuck, resolvidos, base!inner(slug, operacao_id)")
     .eq("base.operacao_id", operacaoId)
+    .eq("data_pt_br", day)
     .order("seq")
   if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
 

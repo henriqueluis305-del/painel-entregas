@@ -1,12 +1,12 @@
 import Image from "next/image"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { FileDownIcon } from "lucide-react"
 
 import { ShopeeSubtabs } from "@/components/shopee/subtabs-nav"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { getSessionProfile } from "@/lib/auth"
+import { requireOperacaoAccess } from "@/lib/auth"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { SHOPEE_SLUG } from "@/lib/shopee"
 
@@ -15,8 +15,7 @@ export default async function ShopeeLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getSessionProfile()
-  if (!session) redirect("/login")
+  const session = await requireOperacaoAccess(SHOPEE_SLUG)
 
   const op = await getOperacaoBySlug(SHOPEE_SLUG)
   if (!op) notFound()

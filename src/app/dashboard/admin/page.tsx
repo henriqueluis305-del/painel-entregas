@@ -20,15 +20,17 @@ import { PERMS, ROLE_LABEL, type Role } from "@/lib/permissions"
 import { getOperacoesWithBases, getUsers } from "@/lib/queries"
 
 import { OperacoesManager } from "./operacoes-manager"
-import { UserActions } from "./user-actions"
+import { ApprovalDialog, UserActions } from "./user-actions"
 
 export default async function Page() {
   await requirePerm(PERMS.MANAGE_USERS)
-  const [operacoes, users] = await Promise.all([
+  const [operacoes, allUsers] = await Promise.all([
     getOperacoesWithBases(),
     getUsers(),
   ])
-  const opsLite = operacoes.map((o) => ({ slug: o.slug, label: o.label }))
+  const pending = allUsers.filter((u) => u.approval_status === "pending")
+  const users = allUsers.filter((u) => u.approval_status !== "pending")
+  const opsLite = operacoes.map((o) => ({ id: o.id, slug: o.slug, label: o.label }))
   const opsWithLogo = operacoes.map((o) => {
     const rel = `/operacoes/${o.slug}.png`
     return {
@@ -55,7 +57,46 @@ export default async function Page() {
             <OperacoesManager operacoes={opsWithLogo} />
           </TabsContent>
 
-          <TabsContent value="users" className="mt-4">
+          <TabsContent value="users" className="mt-4 flex flex-col gap-4">
+            {pending.length > 0 && (
+              <div className="bg-card overflow-hidden rounded-xl border shadow-sm">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <h3 className="text-sm font-semibold">Cadastros pendentes</h3>
+                  <Badge>{pending.length}</Badge>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead>Nome</TableHead>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead>Cargo solicitado</TableHead>
+                      <TableHead>Cadastrado em</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pending.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.empresa ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {ROLE_LABEL[u.role as Role] ?? u.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <ApprovalDialog user={u} operacoes={opsLite} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
             <div className="bg-card overflow-hidden rounded-xl border shadow-sm">
               <Table>
                 <TableHeader>
@@ -93,14 +134,20 @@ export default async function Page() {
                       </TableCell>
                       <TableCell>{u.base_scope}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={u.active ? "outline" : "secondary"}
-                          className={
-                            u.active ? "text-emerald-500" : "text-muted-foreground"
-                          }
-                        >
-                          {u.active ? "Ativo" : "Inativo"}
-                        </Badge>
+                        {u.approval_status === "rejected" ? (
+                          <Badge variant="secondary" className="text-muted-foreground">
+                            Rejeitado
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant={u.active ? "outline" : "secondary"}
+                            className={
+                              u.active ? "text-emerald-500" : "text-muted-foreground"
+                            }
+                          >
+                            {u.active ? "Ativo" : "Inativo"}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">

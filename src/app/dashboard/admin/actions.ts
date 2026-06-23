@@ -118,17 +118,22 @@ export type UpdateUserPayload = {
   email: string
   role: Role
   base_scope: string
+  operacao_id: string | null
   is_admin: boolean
   sidebar_operacoes: string[] | null // null = segue o padrão
+  password?: string // se preenchido, redefine a senha
 }
 
-export async function updateUser(
+async function applyUserUpdate(
+  sb: ReturnType<typeof createAdminClient>,
   payload: UpdateUserPayload,
+  extra: Record<string, unknown> = {},
 ): Promise<ActionState> {
-  await requirePerm(PERMS.MANAGE_USERS)
-  const sb = createAdminClient()
-  const { id, empresa, email, role, base_scope, is_admin, sidebar_operacoes } =
+  const { id, empresa, email, role, base_scope, operacao_id, is_admin, sidebar_operacoes, password } =
     payload
+  if (password && password.length < 8) {
+    return { ok: false, error: "A senha precisa ter ao menos 8 caracteres." }
+  }
   const { error } = await sb
     .from("app_user")
     .update({
@@ -136,14 +141,58 @@ export async function updateUser(
       email: email.trim(),
       role,
       base_scope,
+      operacao_id: base_scope === "SINGLE" ? operacao_id : null,
       is_admin,
       sidebar_operacoes,
+      ...extra,
     })
     .eq("id", id)
   if (error) return { ok: false, error: error.message }
-  if (email.trim()) {
-    await sb.auth.admin.updateUserById(id, { email: email.trim() })
+
+  const authUpdate: { email?: string; password?: string } = {}
+  if (email.trim()) authUpdate.email = email.trim()
+  if (password) authUpdate.password = password
+  if (Object.keys(authUpdate).length) {
+    const { error: authError } = await sb.auth.admin.updateUserById(id, authUpdate)
+    if (authError) return { ok: false, error: authError.message }
   }
+  revalidate()
+  return { ok: true }
+}
+
+export async function updateUser(
+  payload: UpdateUserPayload,
+): Promise<ActionState> {
+  await requirePerm(PERMS.MANAGE_USERS)
+  const sb = createAdminClient()
+  return applyUserUpdate(sb, payload)
+}
+
+/** Aprova um cadastro pendente: salva os campos revisados, ativa e desbane. */
+export async function approveUser(
+  payload: UpdateUserPayload,
+): Promise<ActionState> {
+  await requirePerm(PERMS.MANAGE_USERS)
+  const sb = createAdminClient()
+  const result = await applyUserUpdate(sb, payload, {
+    approval_status: "approved",
+    active: true,
+  })
+  if (!result.ok) return result
+  await sb.auth.admin.updateUserById(payload.id, { ban_duration: "none" })
+  revalidate()
+  return { ok: true }
+}
+
+/** Rejeita um cadastro pendente. Continua banido; fica visível pra auditoria. */
+export async function rejectUser(id: string): Promise<ActionState> {
+  await requirePerm(PERMS.MANAGE_USERS)
+  const sb = createAdminClient()
+  const { error } = await sb
+    .from("app_user")
+    .update({ approval_status: "rejected" })
+    .eq("id", id)
+  if (error) return { ok: false, error: error.message }
   revalidate()
   return { ok: true }
 }

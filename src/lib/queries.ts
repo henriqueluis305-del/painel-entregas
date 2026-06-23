@@ -25,9 +25,12 @@ export type UserRow = {
   empresa: string | null
   role: Role
   base_scope: string
+  operacao_id: string | null
   is_admin: boolean
   active: boolean
+  approval_status: "pending" | "approved" | "rejected"
   sidebar_operacoes: string[] | null
+  created_at: string
 }
 
 export async function getOperacoesWithBases(): Promise<OperacaoWithBases[]> {
@@ -79,7 +82,7 @@ export async function getUsers(): Promise<UserRow[]> {
   const { data } = await sb
     .from("app_user")
     .select(
-      "id, email, empresa, role, base_scope, is_admin, active, sidebar_operacoes",
+      "id, email, empresa, role, base_scope, operacao_id, is_admin, active, approval_status, sidebar_operacoes, created_at",
     )
     .order("empresa")
   return (data as UserRow[]) ?? []

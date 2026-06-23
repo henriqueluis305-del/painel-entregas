@@ -4,6 +4,7 @@ import { BoxesIcon } from "lucide-react"
 import { KpiCard } from "@/components/kpi-card"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { requireOperacaoAccess } from "@/lib/auth"
 import { getOperacaoBySlug } from "@/lib/queries"
 
 export default async function Page({
@@ -12,6 +13,7 @@ export default async function Page({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
+  await requireOperacaoAccess(slug)
   const op = await getOperacaoBySlug(slug)
   if (!op) notFound()
 

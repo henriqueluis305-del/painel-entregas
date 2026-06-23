@@ -168,18 +168,20 @@ order by ds.data_pt_br;   -- ordenar por data real no código (DD/MM/YYYY)
 ## 7. Fases de implementação
 
 ### Fase A — Acesso + seletores
-- [ ] ⚠️ Coluna `principal_operacao_id` (após OK) + helper `operacoesPermitidas(profile)`
-- [ ] Rota `dashboard/live` + seletor de operação (gated) + dia + filtros avançados (URL)
+- [x] ✅ Coluna `principal_operacao_id` (`sql/22`) + helper `getAllowedOperacoes(profile)` (`src/lib/live-queries.ts`) + `Profile` atualizado
+- [x] Rota `dashboard/live` + seletor de **operação** (gated) + **dia** via URL + link na sidebar ("Visão 360")
+- [ ] Filtros avançados (bases/motorista/turno) no seletor
 - [ ] Config do usuário (setar principal) + edição pelo super-adm em `admin`
 
-### Fase B — Consolidado + Healthcheck
-- [ ] Queries 6.1/6.2 + cards de SLA/DS + barra de healthcheck (semáforo)
-- [ ] Gauges + evolução (reuso de componentes)
+### Fase B — Consolidado + Healthcheck ✅
+- [x] Queries SLA/DS do dia (`getSlaDay`/`getDsDay`) + cards com `HalfGauge`
+- [x] Barra de **healthcheck** (semáforo: SLA/DS/Ocorrências + saúde geral)
 
 ### Fase C — Motoristas (ofensão / progressão)
-- [ ] Ranking piores (6.3) em cards + tabela ordenável (6.3)
-- [ ] Progressão por motorista (6.4) com seta de tendência
-- [ ] Coluna "prejuízo" entra com o PNR (WIP)
+- [x] Ranking piores em cards + **tabela ordenável** (`driver-ranking.tsx`) — ofensão por ocorrências
+- [x] **Prejuízo MOCK** (ocorrências × R$27,50) até o PNR
+- [ ] Progressão por motorista (tendência ▲/▼) — `getDriverProgression`
+- [ ] Prejuízo definitivo com o PNR (WIP)
 
 ### Fase D — Live
 - [ ] Atualização (revalidate curto / botão / auto-refresh opcional)

@@ -21,7 +21,6 @@ import { PERMS, type Permission } from "@/lib/permissions"
 import {
   LayoutDashboardIcon,
   ActivityIcon,
-  CalendarClockIcon,
   HistoryIcon,
   TruckIcon,
   ChartSplineIcon,
@@ -41,8 +40,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { title: "Início", url: "/dashboard", icon: LayoutDashboardIcon, perm: null, group: "Plataforma" },
-  { title: "Visão 360", url: "/dashboard/live", icon: ActivityIcon, perm: null, group: "Plataforma" },
-  { title: "SLA & DS Hoje", url: "/dashboard/hoje", icon: CalendarClockIcon, perm: PERMS.VIEW_HOJE, group: "Plataforma" },
+  { title: "SLA & DS Hoje", url: "/dashboard/live", icon: ActivityIcon, perm: null, group: "Plataforma" },
   { title: "Histórico", url: "/dashboard/historico", icon: HistoryIcon, perm: PERMS.VIEW_HISTORICO, group: "Plataforma" },
   { title: "Motoristas", url: "/dashboard/motoristas", icon: TruckIcon, perm: PERMS.VIEW_MOTORISTAS, group: "Plataforma" },
   { title: "SLA & DS", url: "/dashboard/sla-ds", icon: ChartSplineIcon, perm: PERMS.VIEW_SLA_DS, group: "Plataforma" },

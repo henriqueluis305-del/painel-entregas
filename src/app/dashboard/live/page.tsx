@@ -51,7 +51,7 @@ export default async function LivePage({
   if (!op) {
     return (
       <>
-        <SiteHeader title="Visão 360" />
+        <SiteHeader title="SLA & DS Hoje" />
         <div className="text-muted-foreground p-6 text-sm">
           Você não tem nenhuma operação disponível.
         </div>
@@ -65,11 +65,11 @@ export default async function LivePage({
   if (!dia) {
     return (
       <>
-        <SiteHeader title="Visão 360" />
+        <SiteHeader title="SLA & DS Hoje" />
         <div className="flex flex-col gap-6 p-4 lg:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Visão 360 — Operação do dia</h2>
+              <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
               <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação.</p>
             </div>
             <LiveSelectors operacoes={operacoes} currentOp={op} days={days} currentDia="" />
@@ -93,11 +93,11 @@ export default async function LivePage({
 
   return (
     <>
-      <SiteHeader title="Visão 360" />
+      <SiteHeader title="SLA & DS Hoje" />
       <div className="flex flex-col gap-6 p-4 lg:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Visão 360 — Operação do dia</h2>
+            <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
             <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação · {dia}</p>
           </div>
           <LiveSelectors operacoes={operacoes} currentOp={op} days={days} currentDia={dia} />

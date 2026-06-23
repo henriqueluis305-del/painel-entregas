@@ -68,11 +68,17 @@ export default async function UploadsPage() {
           needsBase
           bases={bases}
         />
+        <Uploader
+          kind="pnr"
+          label="PNR"
+          description="CSV pnr_station_ticket. A base vem da coluna Station e cada SPXTN conta uma vez."
+          accept=".csv"
+        />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Histórico de uploads</CardTitle>
+          <CardTitle className="text-base">Registro de uploads</CardTitle>
         </CardHeader>
         <CardContent>
           {log.length === 0 ? (

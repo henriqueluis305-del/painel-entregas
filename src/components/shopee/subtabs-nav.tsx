@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import { SHOPEE_BASE_PATH, SHOPEE_TABS } from "@/lib/shopee"
 
 export function ShopeeSubtabs({ isAdmin }: { isAdmin: boolean }) {
@@ -32,11 +31,6 @@ export function ShopeeSubtabs({ isAdmin }: { isAdmin: boolean }) {
             )}
           >
             {tab.label}
-            {tab.wip && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                WIP
-              </Badge>
-            )}
           </Link>
         )
       })}

@@ -22,8 +22,12 @@ import { getOperacaoBySlug } from "@/lib/queries"
 import { effectiveBases, parseShopeeFilters, SHOPEE_BASE_PATH, SHOPEE_SLUG } from "@/lib/shopee"
 import { getShopeeConfig } from "@/lib/shopee/config"
 import { getDsData } from "@/lib/shopee/ds-queries"
+import { getPnrData } from "@/lib/shopee/pnr-queries"
 import { getSlaData } from "@/lib/shopee/sla-queries"
 import { computeStuckKpis, getStuckPackages } from "@/lib/shopee/stuck-queries"
+
+const brl = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
 function qsFrom(sp: Record<string, string | string[] | undefined>): string {
   const params = new URLSearchParams()
@@ -47,16 +51,18 @@ export default async function GeralPage({
   const slugs = effectiveBases(filters)
   const config = await getShopeeConfig()
 
-  const [sla, ds, stuckRows] = op
+  const [sla, ds, stuckRows, pnr] = op
     ? await Promise.all([
         getSlaData(op.id, slugs),
         getDsData(op.id, slugs),
         getStuckPackages(op.id, slugs, { dailyReset: config.stuckDailyReset }),
+        getPnrData(slugs, "tudo"), // PNR é cumulativo: sempre mostra todos os prejuízos abertos
       ])
     : [
         { day: null, pct: 0, total: 0, entregues: 0 } as Awaited<ReturnType<typeof getSlaData>>,
         { day: null, totals: { motoristas: 0, saiu: 0, entregues: 0, emRota: 0, ocorrencias: 0, pct: 0 } } as Awaited<ReturnType<typeof getDsData>>,
         [],
+        { total: 0, valorTotal: 0, revertidas: 0, faturadas: 0, emAberto: 0, motoristas: 0, porStatus: [], porMotorista: [], porBase: [] } as Awaited<ReturnType<typeof getPnrData>>,
       ]
   const stuck = computeStuckKpis(stuckRows)
   const stuckResolvPct = stuck.total ? Math.round((stuck.entregues / stuck.total) * 100) : 0
@@ -71,10 +77,10 @@ export default async function GeralPage({
         <KpiCard icon={GaugeIcon} label="SLA" value={sla.day ? `${sla.pct}%` : "—"} color="#22c55e" />
         <KpiCard icon={TruckIcon} label="DS" value={ds.day ? `${ds.totals.pct}%` : "—"} color="#0ea5e9" />
         <KpiCard icon={BoxesIcon} label="Stuck ativos" value={stuck.ativos} color="#f59e0b" />
-        <KpiCard icon={WalletIcon} label="PNR (WIP)" value="—" color="#a78bfa" />
+        <KpiCard icon={WalletIcon} label="PNR" value={brl(pnr.valorTotal)} color="#a78bfa" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <SummaryCard href={`${SHOPEE_BASE_PATH}/sla${qs}`} title="SLA" subtitle="Nível de serviço">
           {sla.day ? (
             <HalfGauge pct={sla.pct} sub={`${sla.total.toLocaleString("pt-BR")} pacotes`} />
@@ -101,20 +107,32 @@ export default async function GeralPage({
             <Empty />
           )}
         </SummaryCard>
-      </div>
 
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <WalletIcon className="text-muted-foreground size-4" />
-            PNR — Prejuízos (WIP)
-          </CardTitle>
-          <CardDescription>
-            Espaço reservado. Entra quando você enviar os dados de PNR — prejuízo
-            por motorista, status e reclamações.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+        <SummaryCard href={`${SHOPEE_BASE_PATH}/pnr${qs}`} title="PNR" subtitle={`${pnr.total.toLocaleString("pt-BR")} PNRs no total`}>
+          {pnr.total ? (
+            <dl className="flex flex-col gap-2 py-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Prejuízo total</dt>
+                <dd className="font-medium tabular-nums">{brl(pnr.valorTotal)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Para faturamento</dt>
+                <dd className="font-medium tabular-nums">{pnr.faturadas.toLocaleString("pt-BR")}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Revertidas</dt>
+                <dd className="font-medium tabular-nums">{pnr.revertidas.toLocaleString("pt-BR")}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Em aberto</dt>
+                <dd className="font-medium tabular-nums">{pnr.emAberto.toLocaleString("pt-BR")}</dd>
+              </div>
+            </dl>
+          ) : (
+            <Empty />
+          )}
+        </SummaryCard>
+      </div>
     </ShopeeSubtabShell>
   )
 }

@@ -7,11 +7,13 @@ export async function ShopeeSubtabShell({
   title,
   description,
   actions,
+  defaultPeriod,
   children,
 }: {
   title: string
   description: string
   actions?: React.ReactNode
+  defaultPeriod?: string
   children?: React.ReactNode
 }) {
   const op = await getOperacaoBySlug(SHOPEE_SLUG)
@@ -29,7 +31,7 @@ export async function ShopeeSubtabShell({
         {actions}
       </div>
 
-      <ShopeeFilterBar bases={bases} />
+      <ShopeeFilterBar bases={bases} defaultPeriod={defaultPeriod} />
 
       {children}
     </div>

@@ -7,6 +7,7 @@ import { CalendarIcon, MapPinIcon, SlidersHorizontalIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -34,11 +35,17 @@ import {
 
 const ALL = "__all__"
 
-export function ShopeeFilterBar({ bases }: { bases: ShopeeBaseOption[] }) {
+export function ShopeeFilterBar({
+  bases,
+  defaultPeriod = SHOPEE_DEFAULT_PERIOD,
+}: {
+  bases: ShopeeBaseOption[]
+  defaultPeriod?: string
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const filters = parseShopeeFilters(Object.fromEntries(searchParams.entries()))
+  const filters = parseShopeeFilters(Object.fromEntries(searchParams.entries()), defaultPeriod)
 
   // Aplica um patch nos searchParams (null = remover) e navega.
   const apply = useCallback(
@@ -85,7 +92,10 @@ export function ShopeeFilterBar({ bases }: { bases: ShopeeBaseOption[] }) {
       <AdvancedFilters
         bases={bases}
         currentPeriod={filters.period}
+        currentFrom={filters.from}
+        currentTo={filters.to}
         currentBases={filters.bases}
+        defaultPeriod={defaultPeriod}
         onApply={apply}
       />
 
@@ -93,7 +103,7 @@ export function ShopeeFilterBar({ bases }: { bases: ShopeeBaseOption[] }) {
       <div className="text-muted-foreground ml-auto flex items-center gap-2 text-xs">
         <Badge variant="outline" className="gap-1 font-normal">
           <CalendarIcon className="size-3" />
-          {periodLabel(filters.period)}
+          {periodLabel(filters.period, filters.from, filters.to)}
         </Badge>
         {multiActive && (
           <Badge variant="secondary" className="font-normal">
@@ -105,25 +115,58 @@ export function ShopeeFilterBar({ bases }: { bases: ShopeeBaseOption[] }) {
   )
 }
 
+type PeriodMode = "hoje" | "ontem" | "semanal" | "tudo" | "ultimosDias" | "dia" | "intervalo"
+
+const FIXED_MODES = new Set<PeriodMode>(["hoje", "ontem", "semanal", "tudo"])
+
+/** Deriva o modo da UI a partir do valor de período persistido na URL. */
+function deriveMode(period: string): PeriodMode {
+  if (FIXED_MODES.has(period as PeriodMode)) return period as PeriodMode
+  if (period === "dia") return "dia"
+  if (period === "intervalo") return "intervalo"
+  return "ultimosDias" // cobre Nd (ex.: "7d") e qualquer valor desconhecido
+}
+
+function diasFromPeriod(period: string): number {
+  const m = /^(\d+)d$/.exec(period)
+  return m ? Number(m[1]) : 7
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10)
+
 function AdvancedFilters({
   bases,
   currentPeriod,
+  currentFrom,
+  currentTo,
   currentBases,
+  defaultPeriod,
   onApply,
 }: {
   bases: ShopeeBaseOption[]
   currentPeriod: string
+  currentFrom?: string
+  currentTo?: string
   currentBases: string[]
+  defaultPeriod: string
   onApply: (patch: Record<string, string | null>) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [period, setPeriod] = useState(currentPeriod)
+  const [mode, setMode] = useState<PeriodMode>(() => deriveMode(currentPeriod))
+  const [dias, setDias] = useState(() => diasFromPeriod(currentPeriod))
+  const [diaUnico, setDiaUnico] = useState(currentFrom ?? todayIso())
+  const [de, setDe] = useState(currentFrom ?? "")
+  const [ate, setAte] = useState(currentTo ?? "")
   const [selected, setSelected] = useState<string[]>(currentBases)
 
   // Ressincroniza quando o sheet abre (caso a URL tenha mudado por fora).
   function onOpenChange(next: boolean) {
     if (next) {
-      setPeriod(currentPeriod)
+      setMode(deriveMode(currentPeriod))
+      setDias(diasFromPeriod(currentPeriod))
+      setDiaUnico(currentFrom ?? todayIso())
+      setDe(currentFrom ?? "")
+      setAte(currentTo ?? "")
       setSelected(currentBases)
     }
     setOpen(next)
@@ -137,17 +180,35 @@ function AdvancedFilters({
 
   function handleApply() {
     const patch: Record<string, string | null> = {
-      period: period === SHOPEE_DEFAULT_PERIOD ? null : period,
       bases: selected.length ? selected.join(",") : null,
+      from: null,
+      to: null,
     }
-    // multi tem precedência: limpa o filtro básico só quando há multi
-    if (selected.length) patch.base = null
+    if (selected.length) patch.base = null // multi tem precedência: limpa o filtro básico só quando há multi
+
+    if (mode === "ultimosDias") {
+      const n = Math.max(1, Math.round(dias) || 7)
+      patch.period = `${n}d` === defaultPeriod ? null : `${n}d`
+    } else if (mode === "dia") {
+      patch.period = "dia"
+      patch.from = diaUnico || null
+    } else if (mode === "intervalo") {
+      patch.period = "intervalo"
+      patch.from = de || null
+      patch.to = ate || null
+    } else {
+      patch.period = mode === defaultPeriod ? null : mode
+    }
     onApply(patch)
     setOpen(false)
   }
 
   function handleClear() {
-    setPeriod(SHOPEE_DEFAULT_PERIOD)
+    setMode(deriveMode(defaultPeriod))
+    setDias(7)
+    setDiaUnico(todayIso())
+    setDe("")
+    setAte("")
     setSelected([])
     onApply({ period: null, bases: null, base: null, from: null, to: null })
     setOpen(false)
@@ -155,7 +216,7 @@ function AdvancedFilters({
 
   const activeCount =
     (currentBases.length ? 1 : 0) +
-    (currentPeriod !== SHOPEE_DEFAULT_PERIOD ? 1 : 0)
+    (currentPeriod !== defaultPeriod ? 1 : 0)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -178,10 +239,7 @@ function AdvancedFilters({
             <Label className="text-muted-foreground text-xs tracking-wide uppercase">
               Período
             </Label>
-            <Select
-              value={period}
-              onValueChange={(v) => setPeriod(v ?? SHOPEE_DEFAULT_PERIOD)}
-            >
+            <Select value={mode} onValueChange={(v) => v && setMode(v as PeriodMode)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -191,8 +249,54 @@ function AdvancedFilters({
                     {p.label}
                   </SelectItem>
                 ))}
+                <SelectItem value="ultimosDias">Últimos N dias</SelectItem>
+                <SelectItem value="dia">Dia específico</SelectItem>
+                <SelectItem value="intervalo">Dia X até dia Y</SelectItem>
               </SelectContent>
             </Select>
+
+            {mode === "ultimosDias" && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-muted-foreground text-sm">Últimos</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={dias}
+                  onChange={(e) => setDias(Number(e.target.value) || 1)}
+                  className="w-20"
+                />
+                <span className="text-muted-foreground text-sm">dias</span>
+              </div>
+            )}
+
+            {mode === "dia" && (
+              <Input
+                type="date"
+                value={diaUnico}
+                max={todayIso()}
+                onChange={(e) => setDiaUnico(e.target.value)}
+                className="pt-1"
+              />
+            )}
+
+            {mode === "intervalo" && (
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  type="date"
+                  value={de}
+                  max={ate || todayIso()}
+                  onChange={(e) => setDe(e.target.value)}
+                />
+                <span className="text-muted-foreground text-sm">até</span>
+                <Input
+                  type="date"
+                  value={ate}
+                  min={de || undefined}
+                  max={todayIso()}
+                  onChange={(e) => setAte(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid gap-3">

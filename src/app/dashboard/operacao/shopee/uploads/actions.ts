@@ -12,6 +12,7 @@ import { isStuck, parseDiasPreso, resolveBaseSlug } from "@/lib/shopee/stuck"
 import { parseDsCells, calcDs } from "@/lib/shopee/ds"
 import { calcSla } from "@/lib/shopee/sla"
 import { parseCsvObjects } from "@/lib/shopee/csv"
+import { parsePnr } from "@/lib/shopee/pnr"
 
 export type AnalyzeResult = { ok: boolean; title: string; lines: string[]; warn?: string }
 export type ApplyResult = { ok: boolean; message: string }
@@ -41,6 +42,12 @@ const todayBr = () =>
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const horaBr = () =>
   new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date())
+const brl = (value: number) =>
+  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+const pnrTimestamp = (value: string | null | undefined) => {
+  const v = (value ?? "").trim()
+  return /^\d{4}-\d{2}-\d{2}/.test(v) ? v : null
+}
 /** Hora HH:MM tirada do nome do arquivo (..._HH-MM-SS...), senão a hora atual. */
 function fileTime(files: File[]): string {
   for (const f of files) {
@@ -301,6 +308,47 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
       })
     }
 
+    if (kind === "pnr") {
+      const { rows, drivers, total } = parsePnr(await texts(files))
+      return await withPgClient(async (c) => {
+        const op = await shopeeOpId(c)
+        const bmap = await baseIdMap(c, op)
+        const valid = rows.filter((r) => bmap.has(r.baseSlug))
+        const unresolved = [...new Set(rows.map((r) => r.baseSlug).filter((s) => !bmap.has(s)))]
+        const existingRows = valid.length
+          ? await c.query("select spxtn, status from shopee_pnr where spxtn = any($1::text[])", [
+              valid.map((r) => r.spxtn),
+            ])
+          : { rows: [] }
+        const existing = new Map(existingRows.rows.map((r) => [String(r.spxtn), String(r.status)]))
+        let novos = 0
+        let statusUpdates = 0
+        for (const row of valid) {
+          if (!existing.has(row.spxtn)) novos++
+          else if (existing.get(row.spxtn) !== row.status) statusUpdates++
+        }
+        const perBase = new Map<string, number>()
+        for (const row of valid) perBase.set(row.baseSlug, (perBase.get(row.baseSlug) ?? 0) + 1)
+        const valor = valid.reduce((sum, row) => sum + (row.valor ?? 0), 0)
+        return {
+          ok: valid.length > 0,
+          title: "PNR",
+          lines: [
+            `Linhas lidas: ${total}`,
+            `PNRs unicas: ${rows.length}`,
+            `Vao entrar/atualizar: ${valid.length}`,
+            `Novas: ${novos} · status a atualizar: ${statusUpdates} · sem mudanca: ${valid.length - novos - statusUpdates}`,
+            `Valor total no arquivo: ${brl(valor)}`,
+            `Motoristas no arquivo: ${drivers.length}`,
+            `Por base: ${[...perBase.entries()].map(([s, n]) => `${s}=${n}`).join(" · ") || "—"}`,
+          ],
+          warn: unresolved.length
+            ? `Estacoes sem base cadastrada (ignoradas): ${unresolved.map((s) => s || "(sem station)").join(", ")}`
+            : undefined,
+        }
+      })
+    }
+
     return { ok: false, title: "Tipo desconhecido", lines: [kind] }
   } catch (e) {
     return { ok: false, title: "Falha ao analisar", lines: [(e as Error).message] }
@@ -475,6 +523,61 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
       revalidatePath(`${SHOPEE_BASE_PATH}/sla`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
       return { ok: true, message: m }
+    }
+
+    if (kind === "pnr") {
+      const { rows, drivers } = parsePnr(await texts(files))
+      const msg = await withPgClient(async (c) => {
+        const op = await shopeeOpId(c)
+        const bmap = await baseIdMap(c, op)
+        const valid = rows.filter((r) => bmap.has(r.baseSlug))
+        const { valid: validDrv } = await registerDrivers(c, op, drivers)
+
+        for (const ch of chunk(valid, 500)) {
+          const vals: unknown[] = []
+          const tuples = ch.map((row, i) => {
+            const b = i * 10
+            vals.push(
+              row.spxtn,
+              row.driverId && validDrv.has(row.driverId) ? row.driverId : null,
+              row.driverName,
+              bmap.get(row.baseSlug),
+              row.station || null,
+              row.valor,
+              row.status,
+              row.motivo,
+              pnrTimestamp(row.prazo),
+              pnrTimestamp(row.createdTime),
+            )
+            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10})`
+          })
+          if (!tuples.length) continue
+          await c.query(
+            `insert into shopee_pnr
+               (spxtn, driver_id, driver_name, base_id, station_raw, valor, status, motivo, prazo, created_time)
+             values ${tuples.join(",")}
+             on conflict (spxtn) do update set
+               status=excluded.status,
+               last_status_at=case
+                 when shopee_pnr.status is distinct from excluded.status then now()
+                 else shopee_pnr.last_status_at
+               end,
+               updated_at=now()`,
+            vals,
+          )
+        }
+
+        const baseIds = [...new Set(valid.map((r) => bmap.get(r.baseSlug)!))]
+        const valor = valid.reduce((sum, row) => sum + (row.valor ?? 0), 0)
+        const m = `PNR aplicado: ${valid.length} PNRs em ${baseIds.length} base(s), ${brl(valor)}.`
+        await logUpload(c, email, "pnr", filenames, valid.length, m)
+        return m
+      })
+      revalidatePath(`${SHOPEE_BASE_PATH}/pnr`)
+      revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
+      revalidatePath("/dashboard")
+      revalidatePath("/dashboard/live")
+      return { ok: true, message: msg }
     }
 
     return { ok: false, message: "Tipo desconhecido." }

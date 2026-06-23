@@ -1,5 +1,6 @@
 import "server-only"
 
+import { withPgClient } from "@/lib/pg"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { Profile } from "@/lib/auth"
 
@@ -147,12 +148,41 @@ export type DriverRank = {
   entregues: number
   ocorrencias: number
   ds_pct: number
-  prejuizo: number // MOCK até o PNR
+  prejuizo: number
 }
-const CUSTO_OCORRENCIA_MOCK = 27.5 // R$ por ocorrência (placeholder)
+
+async function fetchPnrByDriver(operacaoId: string, dia: string, baseSlug = "") {
+  return withPgClient(async (c) => {
+    const params: unknown[] = [operacaoId, dia]
+    const baseFilter = baseSlug ? "and b.slug=$3" : ""
+    if (baseSlug) params.push(baseSlug)
+
+    const rows = await c.query(
+      `select p.driver_id, coalesce(sum(p.valor),0)::float8 as valor
+       from shopee_pnr p
+       join base b on b.id = p.base_id
+       where p.driver_id is not null
+         and b.operacao_id::text = $1
+         and to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') = $2
+         ${baseFilter}
+       group by p.driver_id`,
+      params,
+    )
+
+    return new Map<string, number>(
+      rows.rows.map((row: { driver_id: string; valor: number }) => [
+        String(row.driver_id),
+        Number(row.valor ?? 0),
+      ]),
+    )
+  })
+}
 
 export async function getDriverRanking(operacaoId: string, dia: string, baseSlug = ""): Promise<DriverRank[]> {
-  const rows = await fetchDs(operacaoId, dia, baseSlug)
+  const [rows, pnrByDriver] = await Promise.all([
+    fetchDs(operacaoId, dia, baseSlug),
+    fetchPnrByDriver(operacaoId, dia, baseSlug),
+  ])
   const map = new Map<string, DriverRank>()
   for (const r of rows) {
     if (!r.driver_id) continue
@@ -173,7 +203,7 @@ export async function getDriverRanking(operacaoId: string, dia: string, baseSlug
   const list = [...map.values()].map((m) => ({
     ...m,
     ds_pct: m.saiu ? Number(((m.entregues / m.saiu) * 100).toFixed(1)) : 0,
-    prejuizo: Number((m.ocorrencias * CUSTO_OCORRENCIA_MOCK).toFixed(2)),
+    prejuizo: Number((pnrByDriver.get(m.driver_id) ?? 0).toFixed(2)),
   }))
   // piores: mais ocorrências, depois pior DS
   return list.sort((a, b) => b.ocorrencias - a.ocorrencias || a.ds_pct - b.ds_pct)

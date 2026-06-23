@@ -110,7 +110,7 @@ export default async function DsPage({
             <KpiCard icon={UsersIcon} label="Motoristas" value={t.motoristas} color="#a78bfa" />
           </div>
 
-          <DsTable rows={ds.rows} />
+          {op && <DsTable rows={ds.rows} operacaoId={op.id} baseSlugs={slugs} referenceDay={ds.day} />}
         </>
       )}
     </ShopeeSubtabShell>

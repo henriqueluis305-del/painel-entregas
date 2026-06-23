@@ -52,7 +52,7 @@ export default async function LivePage({
   if (!op) {
     return (
       <>
-        <SiteHeader title="SLA & DS Hoje" />
+        <SiteHeader title="SLA & DS" />
         <div className="text-muted-foreground p-6 text-sm">
           Você não tem nenhuma operação disponível.
         </div>
@@ -68,11 +68,11 @@ export default async function LivePage({
   if (!dia) {
     return (
       <>
-        <SiteHeader title="SLA & DS Hoje" />
+        <SiteHeader title="SLA & DS" />
         <div className="flex flex-col gap-6 p-4 lg:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
+              <h2 className="text-lg font-semibold">SLA & DS — Operação do dia</h2>
               <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação.</p>
             </div>
             <LiveSelectors operacoes={operacoes} currentOp={op} bases={bases} currentBase={base} days={days} currentDia="" />
@@ -96,11 +96,11 @@ export default async function LivePage({
 
   return (
     <>
-      <SiteHeader title="SLA & DS Hoje" />
+      <SiteHeader title="SLA & DS" />
       <div className="flex flex-col gap-6 p-4 lg:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
+            <h2 className="text-lg font-semibold">SLA & DS — Operação do dia</h2>
             <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação · {dia}</p>
           </div>
           <LiveSelectors operacoes={operacoes} currentOp={op} bases={bases} currentBase={base} days={days} currentDia={dia} />
@@ -149,7 +149,7 @@ export default async function LivePage({
         {/* Ranking de motoristas */}
         <div className="flex flex-col gap-3">
           <h3 className="text-base font-semibold">Motoristas — ofensão & prejuízo</h3>
-          <DriverRanking drivers={ranking} />
+          <DriverRanking drivers={ranking} operacaoId={op} baseSlug={base} referenceDay={dia} />
         </div>
       </div>
     </>

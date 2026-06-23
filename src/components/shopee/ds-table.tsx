@@ -10,6 +10,7 @@ import {
   SearchIcon,
 } from "lucide-react"
 
+import { useDriverPerformanceDialog } from "@/components/shopee/driver-performance-dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,10 +44,27 @@ function val(r: DsRow, key: SortKey): string | number {
   }
 }
 
-export function DsTable({ rows }: { rows: DsRow[] }) {
+export function DsTable({
+  rows,
+  operacaoId,
+  baseSlugs = [],
+  referenceDay,
+}: {
+  rows: DsRow[]
+  operacaoId: string
+  baseSlugs?: string[]
+  referenceDay: string
+}) {
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(0)
   const [sort, setSort] = useState<Sort>({ key: "entregues", dir: "desc" })
+
+  const { openDriver, dialogElement } = useDriverPerformanceDialog({
+    operacaoId,
+    baseSlugs,
+    referenceDay,
+    description: `Desempenho até ${referenceDay} no recorte atual de DS.`,
+  })
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }))
@@ -112,7 +130,20 @@ export function DsTable({ rows }: { rows: DsRow[] }) {
               </TableRow>
             ) : (
               pageRows.map((r) => (
-                <TableRow key={`${r.base_slug}-${r.driver_id}`}>
+                <TableRow
+                  key={`${r.base_slug}-${r.driver_id}`}
+                  role={r.driver_id ? "button" : undefined}
+                  tabIndex={r.driver_id ? 0 : undefined}
+                  onClick={() => r.driver_id && openDriver(r.driver_id, r.driver_name)}
+                  onKeyDown={(event) => {
+                    if (!r.driver_id) return
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      openDriver(r.driver_id, r.driver_name)
+                    }
+                  }}
+                  className={cn(r.driver_id && "cursor-pointer outline-none focus-visible:bg-muted/60")}
+                >
                   <TableCell className="max-w-[260px] truncate">
                     <span className="text-muted-foreground">[{r.driver_id}]</span> {r.driver_name}
                   </TableCell>
@@ -140,6 +171,8 @@ export function DsTable({ rows }: { rows: DsRow[] }) {
           </Button>
         </div>
       </div>
+
+      {dialogElement}
     </div>
   )
 }

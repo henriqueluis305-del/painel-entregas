@@ -30,6 +30,7 @@ export const SHOPEE_PERIODS: ShopeePeriod[] = [
   { value: "ontem", label: "Ontem" },
   { value: "7d", label: "Últimos 7 dias" },
   { value: "30d", label: "Últimos 30 dias" },
+  { value: "semanal", label: "Semanal" },
   { value: "tudo", label: "Todo o período" },
 ]
 

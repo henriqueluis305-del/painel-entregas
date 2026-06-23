@@ -17,6 +17,7 @@ const KIND_LABEL: Record<string, string> = {
   tracking: "Tracking",
   ds: "DS",
   sla: "SLA",
+  pnr: "PNR",
 }
 
 export function uploadKindLabel(kind: string): string {

@@ -68,6 +68,12 @@ export default async function UploadsPage() {
           needsBase
           bases={bases}
         />
+        <Uploader
+          kind="pnr"
+          label="PNR"
+          description="CSV pnr_station_ticket. Dedup por SPXTN (mantém a linha mais recente); só atualiza o status de PNRs já existentes."
+          accept=".csv"
+        />
       </div>
 
       <Card>

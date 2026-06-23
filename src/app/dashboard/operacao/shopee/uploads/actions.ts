@@ -12,6 +12,7 @@ import { isStuck, parseDiasPreso, resolveBaseSlug } from "@/lib/shopee/stuck"
 import { parseDsCells, calcDs } from "@/lib/shopee/ds"
 import { calcSla } from "@/lib/shopee/sla"
 import { parseCsvObjects } from "@/lib/shopee/csv"
+import { parsePnr } from "@/lib/shopee/pnr"
 
 export type AnalyzeResult = { ok: boolean; title: string; lines: string[]; warn?: string }
 export type ApplyResult = { ok: boolean; message: string }
@@ -301,6 +302,36 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
       })
     }
 
+    if (kind === "pnr") {
+      const { rows, drivers, total } = parsePnr(await texts(files))
+      return await withPgClient(async (c) => {
+        const existing = new Map(
+          (await c.query("select spxtn, status from shopee_pnr")).rows.map((r) => [
+            r.spxtn as string,
+            r.status as string,
+          ]),
+        )
+        let novas = 0, alterado = 0
+        for (const r of rows) {
+          const prev = existing.get(r.spxtn)
+          if (prev === undefined) novas++
+          else if (prev !== r.status) alterado++
+        }
+        const soma = rows.reduce((s, r) => s + (r.valor ?? 0), 0)
+        return {
+          ok: rows.length > 0,
+          title: "PNR",
+          lines: [
+            `Linhas lidas: ${total}`,
+            `PNRs únicas (SPXTN): ${rows.length}`,
+            `Novas: ${novas} · status alterado: ${alterado} · inalteradas: ${rows.length - novas - alterado}`,
+            `Valor total: ${soma.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
+            `Motoristas no arquivo: ${drivers.length}`,
+          ],
+        }
+      })
+    }
+
     return { ok: false, title: "Tipo desconhecido", lines: [kind] }
   } catch (e) {
     return { ok: false, title: "Falha ao analisar", lines: [(e as Error).message] }
@@ -475,6 +506,59 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
       revalidatePath(`${SHOPEE_BASE_PATH}/sla`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
       return { ok: true, message: m }
+    }
+
+    if (kind === "pnr") {
+      const { rows, drivers } = parsePnr(await texts(files))
+      const msg = await withPgClient(async (c) => {
+        const op = await shopeeOpId(c)
+        const bmap = await baseIdMap(c, op)
+        const { valid: validDrv } = await registerDrivers(c, op, drivers)
+        const existing = new Map(
+          (await c.query("select spxtn, status from shopee_pnr")).rows.map((r) => [
+            r.spxtn as string,
+            r.status as string,
+          ]),
+        )
+        let novas = 0, alterado = 0
+        for (const r of rows) {
+          const prev = existing.get(r.spxtn)
+          if (prev === undefined) novas++
+          else if (prev !== r.status) alterado++
+        }
+        for (const ch of chunk(rows, 500)) {
+          const vals: unknown[] = []
+          const tuples = ch.map((r, i) => {
+            const b = i * 10
+            vals.push(
+              r.spxtn,
+              r.driverId && validDrv.has(r.driverId) ? r.driverId : null,
+              r.driverName,
+              bmap.get(r.baseSlug) ?? null,
+              r.station || null,
+              r.valor,
+              r.status,
+              r.motivo,
+              r.prazo,
+              r.createdTime || null,
+            )
+            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10})`
+          })
+          await c.query(
+            `insert into shopee_pnr (spxtn, driver_id, driver_name, base_id, station_raw, valor, status, motivo, prazo, created_time)
+             values ${tuples.join(",")}
+             on conflict (spxtn) do update set status=excluded.status, last_status_at=now(), updated_at=now()
+               where shopee_pnr.status is distinct from excluded.status`,
+            vals,
+          )
+        }
+        const m = `PNR aplicado: ${rows.length} únicas (${novas} novas · ${alterado} status alterado).`
+        await logUpload(c, email, "pnr", filenames, rows.length, m)
+        return m
+      })
+      revalidatePath(`${SHOPEE_BASE_PATH}/pnr`)
+      revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
+      return { ok: true, message: msg }
     }
 
     return { ok: false, message: "Tipo desconhecido." }

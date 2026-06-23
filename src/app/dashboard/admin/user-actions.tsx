@@ -66,6 +66,7 @@ function UserForm({
   const [pending, start] = useTransition()
   const [error, setError] = useState("")
   const [empresa, setEmpresa] = useState(user.empresa ?? "")
+  const [cargo, setCargo] = useState(user.cargo ?? "")
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState<Role>(user.role)
   const [scope, setScope] = useState(user.base_scope)
@@ -106,6 +107,7 @@ function UserForm({
       const r = await submit({
         id: user.id,
         empresa,
+        cargo,
         email,
         role,
         base_scope: scope,
@@ -121,9 +123,19 @@ function UserForm({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-2">
-        <Label>Nome</Label>
-        <Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>Nome</Label>
+          <Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label>Cargo</Label>
+          <Input
+            value={cargo}
+            onChange={(e) => setCargo(e.target.value)}
+            placeholder="Ex.: Desenvolvedor"
+          />
+        </div>
       </div>
       <div className="grid gap-2">
         <Label>E-mail</Label>
@@ -146,10 +158,10 @@ function UserForm({
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label>Cargo</Label>
+          <Label>Perfil de acesso</Label>
           <Select value={role} onValueChange={(v) => v && setRole(v as Role)}>
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <SelectValue>{(v: Role) => ROLE_LABEL[v] ?? v}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {ROLES.map((r) => (
@@ -182,7 +194,9 @@ function UserForm({
           <Label>Operação</Label>
           <Select value={operacaoId} onValueChange={(v) => v && pickOperacao(v)}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecione a operação" />
+              <SelectValue>
+                {(v: string) => operacoes.find((o) => o.id === v)?.label ?? "Selecione a operação"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {operacoes.map((o) => (
@@ -294,7 +308,7 @@ export function ApprovalDialog({
         <DialogHeader>
           <DialogTitle>Aprovar cadastro</DialogTitle>
           <DialogDescription>
-            {user.email} · cargo solicitado: {ROLE_LABEL[user.role]}
+            {user.email} · cargo: {user.cargo ?? "—"}
           </DialogDescription>
         </DialogHeader>
         <UserForm

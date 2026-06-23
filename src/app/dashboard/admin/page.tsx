@@ -69,7 +69,7 @@ export default async function Page() {
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableHead>Nome</TableHead>
                       <TableHead>E-mail</TableHead>
-                      <TableHead>Cargo solicitado</TableHead>
+                      <TableHead>Cargo</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -79,11 +79,7 @@ export default async function Page() {
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">{u.empresa ?? "—"}</TableCell>
                         <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {ROLE_LABEL[u.role as Role] ?? u.role}
-                          </Badge>
-                        </TableCell>
+                        <TableCell>{u.cargo ?? "—"}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {new Date(u.created_at).toLocaleDateString("pt-BR")}
                         </TableCell>
@@ -104,6 +100,7 @@ export default async function Page() {
                     <TableHead>Nome</TableHead>
                     <TableHead>E-mail</TableHead>
                     <TableHead>Cargo</TableHead>
+                    <TableHead>Perfil</TableHead>
                     <TableHead>Escopo</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Dashboards</TableHead>
@@ -127,6 +124,7 @@ export default async function Page() {
                       <TableCell className="text-muted-foreground">
                         {u.email}
                       </TableCell>
+                      <TableCell>{u.cargo ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">
                           {ROLE_LABEL[u.role as Role] ?? u.role}

@@ -7,7 +7,6 @@ import { Loader2Icon, MailIcon, LockIcon, UserIcon, BriefcaseIcon } from "lucide
 
 import { requestSignup, type SignupResult } from "@/app/login/actions"
 import { createClient } from "@/lib/supabase/client"
-import { ROLE_LABEL, SIGNUP_ROLES, type Role } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -18,13 +17,6 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   const router = useRouter()
@@ -110,7 +102,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [state, formAction, pending] = useActionState<SignupResult, FormData>(requestSignup, {
     ok: false,
   })
-  const [role, setRole] = useState<Role>("USER")
 
   if (state.ok) {
     return (
@@ -134,6 +125,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           <div className="relative">
             <UserIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input id="nome" name="nome" placeholder="Seu nome" required className="pl-9" />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="cargo">Cargo</Label>
+          <div className="relative">
+            <BriefcaseIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input id="cargo" name="cargo" placeholder="Ex.: Desenvolvedor" required className="pl-9" />
           </div>
         </div>
         <div className="grid gap-2">
@@ -163,25 +161,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               required
               className="pl-9"
             />
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="role">Cargo</Label>
-          <div className="relative">
-            <BriefcaseIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2" />
-            <input type="hidden" name="role" value={role} />
-            <Select value={role} onValueChange={(v) => v && setRole(v as Role)}>
-              <SelectTrigger className="w-full pl-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SIGNUP_ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {ROLE_LABEL[r]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
         {state.error && (

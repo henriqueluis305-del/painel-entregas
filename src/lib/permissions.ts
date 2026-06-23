@@ -17,13 +17,13 @@ export const PERMS = {
 } as const
 
 export type Permission = (typeof PERMS)[keyof typeof PERMS]
+// "Admin" não é role — é a flag is_admin (independente do cargo/perfil).
 export type Role =
   | "USER"
   | "MONITORAMENTO"
   | "SUPERVISOR"
   | "SUPERVISOR_FINANCEIRO"
   | "COORDENADOR"
-  | "ADMIN"
 
 export const ROLE_PRESETS: Record<Role, Permission[]> = {
   // Default de cadastro público: só vê Início e SLA & DS (perm:null na sidebar),
@@ -63,7 +63,6 @@ export const ROLE_PRESETS: Record<Role, Permission[]> = {
     PERMS.SUBMIT_LIBERACAO,
     PERMS.VIEW_ALL_BASES,
   ],
-  ADMIN: Object.values(PERMS),
 }
 
 /** Lista resolvida de permissões do usuário (preset + extras − negadas). */
@@ -82,22 +81,12 @@ export function resolvePerms(profile: {
   return [...set]
 }
 
-/** Cargos que um usuário pode se autodeclarar no cadastro público (sem ADMIN). */
-export const SIGNUP_ROLES: Role[] = [
-  "USER",
-  "MONITORAMENTO",
-  "SUPERVISOR",
-  "SUPERVISOR_FINANCEIRO",
-  "COORDENADOR",
-]
-
 export const ROLE_LABEL: Record<Role, string> = {
   USER: "Usuário",
   MONITORAMENTO: "Monitoramento",
   SUPERVISOR: "Supervisor",
   SUPERVISOR_FINANCEIRO: "Supervisor Financeiro",
   COORDENADOR: "Coordenador",
-  ADMIN: "Admin",
 }
 
 export function hasPerm(

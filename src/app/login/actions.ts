@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache"
 
-import { SIGNUP_ROLES, type Role } from "@/lib/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export type SignupResult = { ok: boolean; error?: string }
@@ -15,14 +14,14 @@ export async function requestSignup(
   formData: FormData,
 ): Promise<SignupResult> {
   const nome = String(formData.get("nome") ?? "").trim()
+  const cargo = String(formData.get("cargo") ?? "").trim()
   const email = String(formData.get("email") ?? "").trim().toLowerCase()
   const password = String(formData.get("password") ?? "")
-  const role = String(formData.get("role") ?? "") as Role
 
   if (!nome) return { ok: false, error: "Informe seu nome." }
+  if (!cargo) return { ok: false, error: "Informe seu cargo." }
   if (!email) return { ok: false, error: "Informe seu e-mail." }
   if (password.length < 8) return { ok: false, error: "A senha precisa ter ao menos 8 caracteres." }
-  if (!SIGNUP_ROLES.includes(role)) return { ok: false, error: "Selecione um cargo válido." }
 
   const sb = createAdminClient()
 
@@ -44,7 +43,8 @@ export async function requestSignup(
     id: data.user.id,
     email,
     empresa: nome,
-    role,
+    cargo,
+    role: "USER", // perfil de permissão é decidido pelo admin na aprovação
     base_scope: "SINGLE",
     is_admin: false,
     active: false,

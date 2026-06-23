@@ -115,6 +115,7 @@ export async function setBaseActive(id: string, value: boolean) {
 export type UpdateUserPayload = {
   id: string
   empresa: string
+  cargo: string
   email: string
   role: Role
   base_scope: string
@@ -129,7 +130,7 @@ async function applyUserUpdate(
   payload: UpdateUserPayload,
   extra: Record<string, unknown> = {},
 ): Promise<ActionState> {
-  const { id, empresa, email, role, base_scope, operacao_id, is_admin, sidebar_operacoes, password } =
+  const { id, empresa, cargo, email, role, base_scope, operacao_id, is_admin, sidebar_operacoes, password } =
     payload
   if (password && password.length < 8) {
     return { ok: false, error: "A senha precisa ter ao menos 8 caracteres." }
@@ -138,6 +139,7 @@ async function applyUserUpdate(
     .from("app_user")
     .update({
       empresa: empresa.trim() || null,
+      cargo: cargo.trim() || null,
       email: email.trim(),
       role,
       base_scope,

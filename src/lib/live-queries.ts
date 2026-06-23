@@ -36,13 +36,29 @@ function parseBrDate(s: string): number {
   return new Date(y, (m ?? 1) - 1, d ?? 1).getTime()
 }
 
-/** Dias com dados (data_pt_br) da operação, mais recente primeiro. */
-export async function getAvailableDays(operacaoId: string): Promise<string[]> {
+export type BaseLite = { slug: string; label: string }
+
+/** Bases ativas da operação (os "datasets"). */
+export async function getOpBases(operacaoId: string): Promise<BaseLite[]> {
   const sb = createAdminClient()
-  const [{ data: ds }, { data: sla }] = await Promise.all([
-    sb.from("shopee_ds_driver").select("data_pt_br, base!inner(operacao_id)").eq("base.operacao_id", operacaoId),
-    sb.from("shopee_sla_record").select("data_pt_br, base!inner(operacao_id)").eq("base.operacao_id", operacaoId),
-  ])
+  const { data } = await sb
+    .from("base")
+    .select("slug, label")
+    .eq("operacao_id", operacaoId)
+    .eq("active", true)
+    .order("slug")
+  return (data ?? []) as BaseLite[]
+}
+
+/** Dias com dados, mais recente primeiro. baseSlug vazio = todas as bases. */
+export async function getAvailableDays(operacaoId: string, baseSlug = ""): Promise<string[]> {
+  const sb = createAdminClient()
+  const q = (t: string) => {
+    let x = sb.from(t).select("data_pt_br, base!inner(operacao_id, slug)").eq("base.operacao_id", operacaoId)
+    if (baseSlug) x = x.eq("base.slug", baseSlug)
+    return x
+  }
+  const [{ data: ds }, { data: sla }] = await Promise.all([q("shopee_ds_driver"), q("shopee_sla_record")])
   const set = new Set<string>()
   for (const r of [...(ds ?? []), ...(sla ?? [])] as { data_pt_br: string }[]) set.add(r.data_pt_br)
   return [...set].sort((a, b) => parseBrDate(b) - parseBrDate(a))
@@ -56,13 +72,15 @@ export type SlaDay = {
   outros: number
   pct: number
 }
-export async function getSlaDay(operacaoId: string, dia: string): Promise<SlaDay> {
+export async function getSlaDay(operacaoId: string, dia: string, baseSlug = ""): Promise<SlaDay> {
   const sb = createAdminClient()
-  const { data } = await sb
+  let q = sb
     .from("shopee_sla_record")
-    .select("total, entregues, ocorrencias, faltantes, outros, base!inner(operacao_id)")
+    .select("total, entregues, ocorrencias, faltantes, outros, base!inner(operacao_id, slug)")
     .eq("base.operacao_id", operacaoId)
     .eq("data_pt_br", dia)
+  if (baseSlug) q = q.eq("base.slug", baseSlug)
+  const { data } = await q
   const agg = (data ?? []).reduce(
     (a, r) => ({
       total: a.total + r.total,
@@ -92,18 +110,20 @@ type DsRowRaw = {
   driver_id: string | null
   driver: { name: string } | null
 }
-async function fetchDs(operacaoId: string, dia: string): Promise<DsRowRaw[]> {
+async function fetchDs(operacaoId: string, dia: string, baseSlug = ""): Promise<DsRowRaw[]> {
   const sb = createAdminClient()
-  const { data } = await sb
+  let q = sb
     .from("shopee_ds_driver")
-    .select("saiu, entregues, em_rota, ocorrencias, driver_id, base!inner(operacao_id), driver(name)")
+    .select("saiu, entregues, em_rota, ocorrencias, driver_id, base!inner(operacao_id, slug), driver(name)")
     .eq("base.operacao_id", operacaoId)
     .eq("data_pt_br", dia)
+  if (baseSlug) q = q.eq("base.slug", baseSlug)
+  const { data } = await q
   return (data ?? []) as unknown as DsRowRaw[]
 }
 
-export async function getDsDay(operacaoId: string, dia: string): Promise<DsDay> {
-  const rows = await fetchDs(operacaoId, dia)
+export async function getDsDay(operacaoId: string, dia: string, baseSlug = ""): Promise<DsDay> {
+  const rows = await fetchDs(operacaoId, dia, baseSlug)
   const drivers = new Set<string>()
   const agg = rows.reduce(
     (a, r) => {
@@ -131,8 +151,8 @@ export type DriverRank = {
 }
 const CUSTO_OCORRENCIA_MOCK = 27.5 // R$ por ocorrência (placeholder)
 
-export async function getDriverRanking(operacaoId: string, dia: string): Promise<DriverRank[]> {
-  const rows = await fetchDs(operacaoId, dia)
+export async function getDriverRanking(operacaoId: string, dia: string, baseSlug = ""): Promise<DriverRank[]> {
+  const rows = await fetchDs(operacaoId, dia, baseSlug)
   const map = new Map<string, DriverRank>()
   for (const r of rows) {
     if (!r.driver_id) continue

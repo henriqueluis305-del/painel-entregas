@@ -18,6 +18,7 @@ import {
   getAvailableDays,
   getDriverRanking,
   getDsDay,
+  getOpBases,
   getSlaDay,
   type HealthLevel,
 } from "@/lib/live-queries"
@@ -59,7 +60,9 @@ export default async function LivePage({
     )
   }
 
-  const days = await getAvailableDays(op)
+  const bases = await getOpBases(op)
+  const base = bases.some((b) => b.slug === pick(sp.base)) ? (pick(sp.base) as string) : ""
+  const days = await getAvailableDays(op, base)
   const dia = days.includes(pick(sp.dia) ?? "") ? (pick(sp.dia) as string) : days[0]
 
   if (!dia) {
@@ -72,7 +75,7 @@ export default async function LivePage({
               <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
               <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação.</p>
             </div>
-            <LiveSelectors operacoes={operacoes} currentOp={op} days={days} currentDia="" />
+            <LiveSelectors operacoes={operacoes} currentOp={op} bases={bases} currentBase={base} days={days} currentDia="" />
           </div>
           <Card className="border-dashed">
             <CardContent className="text-muted-foreground py-12 text-center text-sm">
@@ -85,9 +88,9 @@ export default async function LivePage({
   }
 
   const [sla, ds, ranking] = await Promise.all([
-    getSlaDay(op, dia),
-    getDsDay(op, dia),
-    getDriverRanking(op, dia),
+    getSlaDay(op, dia, base),
+    getDsDay(op, dia, base),
+    getDriverRanking(op, dia, base),
   ])
   const health = computeHealthcheck(sla, ds)
 
@@ -100,7 +103,7 @@ export default async function LivePage({
             <h2 className="text-lg font-semibold">SLA & DS Hoje — Operação do dia</h2>
             <p className="text-muted-foreground text-sm">SLA, DS e saúde da operação · {dia}</p>
           </div>
-          <LiveSelectors operacoes={operacoes} currentOp={op} days={days} currentDia={dia} />
+          <LiveSelectors operacoes={operacoes} currentOp={op} bases={bases} currentBase={base} days={days} currentDia={dia} />
         </div>
 
         {/* Healthcheck */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { BuildingIcon, CalendarIcon } from "lucide-react"
+import { BuildingIcon, BoxesIcon, CalendarIcon } from "lucide-react"
 
 import {
   Select,
@@ -10,16 +10,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { OpLite } from "@/lib/live-queries"
+import type { BaseLite, OpLite } from "@/lib/live-queries"
+
+const ALL = "__all__"
 
 export function LiveSelectors({
   operacoes,
   currentOp,
+  bases,
+  currentBase,
   days,
   currentDia,
 }: {
   operacoes: OpLite[]
   currentOp: string
+  bases: BaseLite[]
+  currentBase: string
   days: string[]
   currentDia: string
 }) {
@@ -43,16 +49,36 @@ export function LiveSelectors({
         <BuildingIcon className="text-muted-foreground size-4" />
         <Select
           value={currentOp}
-          onValueChange={(v) => v && go({ op: v, dia: null })} // troca op → reseta dia
+          onValueChange={(v) => v && go({ op: v, base: null, dia: null })} // troca op → reseta base+dia
           disabled={operacoes.length <= 1}
         >
-          <SelectTrigger size="sm" className="w-[200px]">
+          <SelectTrigger size="sm" className="w-[180px]">
             <SelectValue placeholder="Operação" />
           </SelectTrigger>
           <SelectContent>
             {operacoes.map((o) => (
               <SelectItem key={o.id} value={o.id}>
                 {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <BoxesIcon className="text-muted-foreground size-4" />
+        <Select
+          value={currentBase || ALL}
+          onValueChange={(v) => go({ base: !v || v === ALL ? null : v, dia: null })} // troca base → reseta dia
+        >
+          <SelectTrigger size="sm" className="w-[190px]">
+            <SelectValue placeholder="Base" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as bases</SelectItem>
+            {bases.map((b) => (
+              <SelectItem key={b.slug} value={b.slug}>
+                {b.label}
               </SelectItem>
             ))}
           </SelectContent>

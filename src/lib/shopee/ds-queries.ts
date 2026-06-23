@@ -76,7 +76,8 @@ export async function getDsCheckpoints(
     .map(([seq, m]) => ({
       seq,
       label: m.label,
-      pct: m.saiu ? Number((((m.saiu - m.entregues) / m.saiu) * 100).toFixed(1)) : 0,
+      // DS% = entregues/encaminhados (sobe ao longo do dia)
+      pct: m.saiu ? Number(((m.entregues / m.saiu) * 100).toFixed(1)) : 0,
     }))
 }
 

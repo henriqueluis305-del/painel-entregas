@@ -67,8 +67,8 @@ export default async function DsPage({
           <div className="grid gap-4 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Burn-down DS</CardTitle>
-                <CardDescription>% ainda não entregue por upload</CardDescription>
+                <CardTitle className="text-base">DS ao longo do dia</CardTitle>
+                <CardDescription>DS% (entregue / encaminhado) por upload</CardDescription>
               </CardHeader>
               <CardContent>
                 <BurnDownChart points={checkpoints.map((c) => ({ label: c.label, pct: c.pct }))} />

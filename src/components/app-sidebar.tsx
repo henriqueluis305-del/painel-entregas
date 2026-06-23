@@ -4,6 +4,15 @@ import * as React from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import {
+  ChartSplineIcon,
+  CircleCheckBigIcon,
+  LayoutDashboardIcon,
+  SettingsIcon,
+  StoreIcon,
+  TruckIcon,
+  type LucideIcon,
+} from "lucide-react"
 
 import { NavUser } from "@/components/nav-user"
 import {
@@ -18,17 +27,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { PERMS, type Permission } from "@/lib/permissions"
-import {
-  LayoutDashboardIcon,
-  ActivityIcon,
-  HistoryIcon,
-  TruckIcon,
-  ChartSplineIcon,
-  CircleCheckBigIcon,
-  SettingsIcon,
-  StoreIcon,
-  type LucideIcon,
-} from "lucide-react"
 
 type NavItem = {
   title: string
@@ -40,10 +38,8 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { title: "Início", url: "/dashboard", icon: LayoutDashboardIcon, perm: null, group: "Plataforma" },
-  { title: "SLA & DS Hoje", url: "/dashboard/live", icon: ActivityIcon, perm: null, group: "Plataforma" },
-  { title: "Histórico", url: "/dashboard/historico", icon: HistoryIcon, perm: PERMS.VIEW_HISTORICO, group: "Plataforma" },
+  { title: "SLA & DS", url: "/dashboard/live", icon: ChartSplineIcon, perm: null, group: "Plataforma" },
   { title: "Motoristas", url: "/dashboard/motoristas", icon: TruckIcon, perm: PERMS.VIEW_MOTORISTAS, group: "Plataforma" },
-  { title: "SLA & DS", url: "/dashboard/sla-ds", icon: ChartSplineIcon, perm: PERMS.VIEW_SLA_DS, group: "Plataforma" },
   { title: "Liberação", url: "/dashboard/liberacao", icon: CircleCheckBigIcon, perm: PERMS.VIEW_LIBERACAO, group: "Plataforma" },
   { title: "Configurações", url: "/dashboard/admin", icon: SettingsIcon, perm: PERMS.MANAGE_USERS, group: "Gestão" },
 ]
@@ -86,7 +82,6 @@ function NavGroup({
 }
 
 function OpIcon({ logo, label }: { logo: string | null; label: string }) {
-  // Logo preenche a caixa; cantos internos arredondados iguais aos externos.
   if (logo) {
     return (
       <span className="flex size-5 shrink-0 overflow-hidden rounded-md">
@@ -101,7 +96,7 @@ function OpIcon({ logo, label }: { logo: string | null; label: string }) {
     )
   }
   return (
-    <span className="bg-sidebar-accent flex size-5 shrink-0 items-center justify-center rounded-md">
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-sidebar-accent">
       <StoreIcon className="size-3" />
     </span>
   )
@@ -146,7 +141,7 @@ export function AppSidebar({
               />
               <div className="flex flex-col leading-tight">
                 <span className="text-sm font-semibold">Parceiro Spot</span>
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   Painel de Entregas
                 </span>
               </div>

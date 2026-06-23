@@ -7,7 +7,6 @@ export const PERMS = {
   SAVE_SNAPSHOT: "snapshot:save",
   SAVE_SLA_DS_MANUAL: "sla_ds:save",
   VIEW_HOJE: "view:hoje",
-  VIEW_HISTORICO: "view:historico",
   VIEW_MOTORISTAS: "view:motoristas",
   VIEW_SLA_DS: "view:sla_ds",
   VIEW_LIBERACAO: "view:liberacao",
@@ -34,7 +33,6 @@ export const ROLE_PRESETS: Record<Role, Permission[]> = {
   ],
   SUPERVISOR: [
     PERMS.VIEW_HOJE,
-    PERMS.VIEW_HISTORICO,
     PERMS.VIEW_MOTORISTAS,
     PERMS.VIEW_SLA_DS,
     PERMS.VIEW_LIBERACAO,
@@ -45,13 +43,11 @@ export const ROLE_PRESETS: Record<Role, Permission[]> = {
   ],
   SUPERVISOR_FINANCEIRO: [
     PERMS.VIEW_HOJE,
-    PERMS.VIEW_HISTORICO,
     PERMS.VIEW_LIBERACAO,
     PERMS.SUBMIT_LIBERACAO,
   ],
   COORDENADOR: [
     PERMS.VIEW_HOJE,
-    PERMS.VIEW_HISTORICO,
     PERMS.VIEW_MOTORISTAS,
     PERMS.VIEW_SLA_DS,
     PERMS.VIEW_LIBERACAO,

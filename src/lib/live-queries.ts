@@ -12,12 +12,19 @@ export async function getAllowedOperacoes(
   const sb = createAdminClient()
   const { data } = await sb
     .from("operacao")
-    .select("id, slug, label")
+    .select("id, slug, label, in_sidebar")
     .eq("active", true)
     .order("label")
-  const all = (data ?? []) as OpLite[]
+  const all = (data ?? []) as (OpLite & { in_sidebar: boolean })[]
+
+  // mesmo filtro da sidebar: escopo + (override do user OU padrão in_sidebar)
   const canAll = profile.is_admin || profile.base_scope === "ALL"
-  const allowed = canAll ? all : all.filter((o) => o.id === profile.operacao_id)
+  const acessivel = canAll ? all : all.filter((o) => o.id === profile.operacao_id)
+  const userSet = profile.sidebar_operacoes ?? null
+  const allowed = acessivel
+    .filter((o) => (userSet ? userSet.includes(o.slug) : o.in_sidebar))
+    .map(({ id, slug, label }) => ({ id, slug, label }))
+
   const principal = profile.principal_operacao_id ?? profile.operacao_id
   const defaultId =
     allowed.find((o) => o.id === principal)?.id ?? allowed[0]?.id ?? null

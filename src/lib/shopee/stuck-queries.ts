@@ -1,20 +1,11 @@
 import "server-only"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import { DELIVERED_STATUS } from "@/lib/shopee/stuck"
+import type { CheckpointPoint, StuckRow } from "@/lib/shopee/stuck"
 
-export type StuckRow = {
-  codigo: string
-  status: string
-  dias_preso: number | null
-  agency: string | null
-  delivered_at: string | null
-  last_status_at: string | null
-  base_slug: string
-  base_label: string
-  driver_id: string | null
-  driver_name: string | null
-}
+// Re-export para consumidores server que importam tudo de stuck-queries.
+export type { CheckpointPoint, StuckKpis, StuckRow } from "@/lib/shopee/stuck"
+export { computeStuckKpis, isPackageDelivered } from "@/lib/shopee/stuck"
 
 type EmbeddedRow = {
   codigo: string
@@ -100,15 +91,6 @@ export async function getStuckPackages(
   }))
 }
 
-export type CheckpointPoint = {
-  seq: number
-  label: string
-  total: number
-  ainda: number
-  resolv: number
-  pct: number // % ainda em stuck
-}
-
 type EmbeddedCheckpoint = {
   seq: number
   label: string
@@ -163,35 +145,4 @@ export async function getStuckCheckpoints(
       resolv: m.resolv,
       pct: m.total ? Number(((m.ainda / m.total) * 100).toFixed(2)) : 0,
     }))
-}
-
-export type StuckKpis = {
-  total: number
-  ativos: number
-  entregues: number
-  motoristas: number
-  bases: number
-}
-
-/** É um pacote ainda "preso" (não entregue)? */
-export function isPackageDelivered(r: StuckRow): boolean {
-  return r.delivered_at != null || r.status === DELIVERED_STATUS
-}
-
-export function computeStuckKpis(rows: StuckRow[]): StuckKpis {
-  const drivers = new Set<string>()
-  const bases = new Set<string>()
-  let entregues = 0
-  for (const r of rows) {
-    if (r.driver_id) drivers.add(r.driver_id)
-    if (r.base_slug) bases.add(r.base_slug)
-    if (isPackageDelivered(r)) entregues++
-  }
-  return {
-    total: rows.length,
-    ativos: rows.length - entregues,
-    entregues,
-    motoristas: drivers.size,
-    bases: bases.size,
-  }
 }

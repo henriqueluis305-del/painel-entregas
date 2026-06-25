@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card"
 import { BurnDownChart } from "@/components/shopee/burn-down-chart"
 import { DonutLegend, MiniDonut, type DonutSegment } from "@/components/shopee/mini-donut"
-import type { CheckpointPoint, StuckKpis } from "@/lib/shopee/stuck-queries"
+import type { CheckpointPoint, StuckKpis } from "@/lib/shopee/stuck"
 
 export function StuckCharts({
   points,

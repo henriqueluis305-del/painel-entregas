@@ -3,7 +3,7 @@ import { BoxesIcon, CheckCircle2Icon, MapPinIcon, UsersIcon } from "lucide-react
 import { KpiCard } from "@/components/kpi-card"
 import { ShopeeSubtabShell } from "@/components/shopee/subtab-shell"
 import { StuckCharts } from "@/components/shopee/stuck-charts"
-import { StuckTable } from "@/components/shopee/stuck-table"
+import { StuckViewTabs } from "@/components/shopee/stuck-view-tabs"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { effectiveBases, parseShopeeFilters, SHOPEE_SLUG } from "@/lib/shopee"
 import { getShopeeConfig } from "@/lib/shopee/config"
@@ -44,7 +44,7 @@ export default async function StuckPage({
 
       <StuckCharts points={points} kpi={kpi} />
 
-      <StuckTable rows={rows} />
+      <StuckViewTabs rows={rows} />
     </ShopeeSubtabShell>
   )
 }

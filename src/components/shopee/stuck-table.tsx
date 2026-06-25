@@ -25,8 +25,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-import type { StuckRow } from "@/lib/shopee/stuck-queries"
 import { DELIVERED_STATUS } from "@/lib/shopee/stuck"
+import type { StuckRow } from "@/lib/shopee/stuck"
 
 const PAGE_SIZE = 50
 

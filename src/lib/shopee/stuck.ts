@@ -39,3 +39,56 @@ export function isStuck(lmHubDays: unknown, status: string): boolean {
   if (d == null) return false
   return Math.floor(d) >= 1 && (status ?? "").trim() !== DELIVERED_STATUS
 }
+
+export type StuckRow = {
+  codigo: string
+  status: string
+  dias_preso: number | null
+  agency: string | null
+  delivered_at: string | null
+  last_status_at: string | null
+  base_slug: string
+  base_label: string
+  driver_id: string | null
+  driver_name: string | null
+}
+
+export type CheckpointPoint = {
+  seq: number
+  label: string
+  total: number
+  ainda: number
+  resolv: number
+  pct: number // % ainda em stuck
+}
+
+export type StuckKpis = {
+  total: number
+  ativos: number
+  entregues: number
+  motoristas: number
+  bases: number
+}
+
+/** É um pacote ainda "preso" (não entregue)? */
+export function isPackageDelivered(r: StuckRow): boolean {
+  return r.delivered_at != null || r.status === DELIVERED_STATUS
+}
+
+export function computeStuckKpis(rows: StuckRow[]): StuckKpis {
+  const drivers = new Set<string>()
+  const bases = new Set<string>()
+  let entregues = 0
+  for (const r of rows) {
+    if (r.driver_id) drivers.add(r.driver_id)
+    if (r.base_slug) bases.add(r.base_slug)
+    if (isPackageDelivered(r)) entregues++
+  }
+  return {
+    total: rows.length,
+    ativos: rows.length - entregues,
+    entregues,
+    motoristas: drivers.size,
+    bases: bases.size,
+  }
+}

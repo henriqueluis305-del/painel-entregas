@@ -33,7 +33,7 @@ import {
   SHOPEE_PNR_DEFAULT_PERIOD,
   SHOPEE_SLUG,
 } from "@/lib/shopee"
-import { getPnrData, getPnrWeeklyData } from "@/lib/shopee/pnr-queries"
+import { getPnrBases, getPnrData, getPnrWeeklyData } from "@/lib/shopee/pnr-queries"
 
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -52,9 +52,10 @@ export default async function PnrPage({
   const op = await getOperacaoBySlug(SHOPEE_SLUG)
   const referenceDay = todayBr()
 
-  const [pnr, weekly] = await Promise.all([
+  const [pnr, weekly, pnrBases] = await Promise.all([
     getPnrData(slugs, isSemanal ? "tudo" : filters.period, filters.from, filters.to),
     isSemanal ? getPnrWeeklyData(slugs) : Promise.resolve(null),
+    getPnrBases(),
   ])
 
   return (
@@ -62,6 +63,7 @@ export default async function PnrPage({
       title="PNR"
       description="Prejuízos de PNR por motorista e status (1 PNR por SPXTN)."
       defaultPeriod={SHOPEE_PNR_DEFAULT_PERIOD}
+      bases={pnrBases}
     >
       {pnr.total === 0 ? (
         <Card className="border-dashed">

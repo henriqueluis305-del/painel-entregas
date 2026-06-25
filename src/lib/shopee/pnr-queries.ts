@@ -47,6 +47,22 @@ export type PnrData = {
   porBase: PnrBaseRow[]
 }
 
+/** Bases que possuem ao menos uma PNR registrada. */
+export async function getPnrBases(): Promise<Array<{ slug: string; label: string }>> {
+  return withPgClient(async (c) => {
+    const rows = (
+      await c.query<{ slug: string; label: string }>(
+        `select distinct b.slug, b.label
+         from shopee_pnr p
+         join base b on b.id = p.base_id
+         where p.base_id is not null
+         order by b.label`,
+      )
+    ).rows
+    return rows
+  })
+}
+
 const REVERSED = "Reversed"
 const FOR_BILLING = "ForBilling"
 const TZ = "America/Sao_Paulo"
@@ -103,7 +119,7 @@ export async function getPnrData(
     // 1) Totais globais
     const tParams: unknown[] = [range.from, range.to, REVERSED, FOR_BILLING]
     let tSql = `select count(*)::int                                     as total,
-                coalesce(sum(valor),0)::float8                    as valor_total,
+                coalesce(sum(valor) filter (where status=$4),0)::float8 as valor_total,
                 count(*) filter (where status=$3)::int            as revertidas,
                 count(*) filter (where status=$4)::int            as faturadas,
                 count(distinct driver_id)::int                    as motoristas
@@ -145,7 +161,7 @@ export async function getPnrData(
     let mSql = `select driver_id,
                 coalesce(max(driver_name), '—')           as driver_name,
                 count(*)::int                              as count,
-                coalesce(sum(valor),0)::float8             as valor,
+                coalesce(sum(valor) filter (where status=$4),0)::float8 as valor,
                 count(*) filter (where status=$3)::int     as revertidas,
                 count(*) filter (where status=$4)::int     as faturadas
          from shopee_pnr
@@ -178,7 +194,7 @@ export async function getPnrData(
     let bSql = `select b.slug                                             as base_slug,
                 b.label                                            as base_label,
                 count(p.spxtn)::int                               as count,
-                coalesce(sum(p.valor),0)::float8                  as valor,
+                coalesce(sum(p.valor) filter (where p.status=$4),0)::float8 as valor,
                 count(p.spxtn) filter (where p.status=$3)::int   as revertidas,
                 count(p.spxtn) filter (where p.status=$4)::int   as faturadas
          from shopee_pnr p

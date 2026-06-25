@@ -8,18 +8,20 @@ export async function ShopeeSubtabShell({
   description,
   actions,
   defaultPeriod,
+  bases: basesProp,
   children,
 }: {
   title: string
   description: string
   actions?: React.ReactNode
   defaultPeriod?: string
+  bases?: Array<{ slug: string; label: string }>
   children?: React.ReactNode
 }) {
-  const op = await getOperacaoBySlug(SHOPEE_SLUG)
-  const bases = (op?.bases ?? [])
-    .filter((b) => b.active)
-    .map((b) => ({ slug: b.slug, label: b.label }))
+  const bases = basesProp ?? await (async () => {
+    const op = await getOperacaoBySlug(SHOPEE_SLUG)
+    return (op?.bases ?? []).filter((b) => b.active).map((b) => ({ slug: b.slug, label: b.label }))
+  })()
 
   return (
     <div className="flex flex-col gap-4">

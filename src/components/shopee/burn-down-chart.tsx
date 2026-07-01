@@ -13,12 +13,35 @@ const config = {
   pct: { label: "%", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
+/**
+ * Eixo Y com zoom adaptativo: enquadra a faixa real dos pontos, deixando uma
+ * folga levemente abaixo do menor valor e levemente acima do maior, para que a
+ * onda fique visível mesmo quando todos os valores são altos (ex.: SLA 96–99%).
+ */
+function adaptiveDomain(values: number[], clampMax = 100): [number, number] {
+  if (values.length === 0) return [0, clampMax]
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  // folga ~15% da amplitude, com mínimo de 1 ponto pra não degenerar em linha reta
+  const pad = Math.max((max - min) * 0.15, 1)
+  let lower = Math.max(0, Math.floor(min - pad))
+  let upper = Math.min(clampMax, Math.ceil(max + pad))
+  if (lower >= upper) {
+    lower = Math.max(0, lower - 1)
+    upper = Math.min(clampMax, upper + 1)
+  }
+  return [lower, upper]
+}
+
 export function BurnDownChart({
   points,
   suffix = "%",
+  adaptive = true,
 }: {
   points: { label: string; pct: number }[]
   suffix?: string
+  /** Ajusta o eixo Y à faixa dos dados (default). `false` trava em 0–100. */
+  adaptive?: boolean
 }) {
   if (points.length === 0) {
     return (
@@ -27,13 +50,17 @@ export function BurnDownChart({
       </p>
     )
   }
+  const domain: [number, number] = adaptive
+    ? adaptiveDomain(points.map((p) => p.pct))
+    : [0, 100]
   return (
     <ChartContainer config={config} className="h-[200px] w-full">
-      <AreaChart data={points} margin={{ left: 4, right: 12, top: 8 }}>
+      <AreaChart data={points} margin={{ left: 4, right: 12, top: 14 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
         <YAxis
-          domain={[0, 100]}
+          domain={domain}
+          allowDecimals={false}
           tickLine={false}
           axisLine={false}
           width={36}

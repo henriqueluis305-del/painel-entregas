@@ -35,6 +35,7 @@ export function Uploader({
   multiple = true,
   needsBase = false,
   bases = [],
+  fixedBase,
 }: {
   kind: string
   label: string
@@ -43,6 +44,8 @@ export function Uploader({
   multiple?: boolean
   needsBase?: boolean
   bases?: ShopeeBaseOption[]
+  /** Base controlada de fora (seletor compartilhado). Esconde o Select interno. */
+  fixedBase?: string
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -51,17 +54,19 @@ export function Uploader({
   const [result, setResult] = useState<AnalyzeResult | null>(null)
   const [pending, start] = useTransition()
 
+  const base = fixedBase ?? baseSlug
+
   function buildForm() {
     const fd = new FormData()
     fd.set("kind", kind)
-    if (baseSlug) fd.set("baseSlug", baseSlug)
+    if (base) fd.set("baseSlug", base)
     for (const f of files) fd.append("files", f)
     return fd
   }
 
   function onAnalyze() {
     if (!files.length) return toast.error("Selecione um arquivo")
-    if (needsBase && !baseSlug) return toast.error("Escolha a base")
+    if (needsBase && !base) return toast.error("Escolha a base")
     start(async () => {
       setResult(await analyzeUpload(buildForm()))
     })
@@ -90,7 +95,7 @@ export function Uploader({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {needsBase && (
+          {needsBase && fixedBase === undefined && (
             <Select value={baseSlug} onValueChange={(v) => setBaseSlug(v ?? "")}>
               <SelectTrigger size="sm" className="w-[200px]">
                 <SelectValue placeholder="Base do export" />

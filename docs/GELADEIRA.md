@@ -10,63 +10,7 @@ implementação futura. Cada item tem um **identificador** (`GEL-XXX`) para refe
 
 ---
 
-## GEL-001 — Resolução de CEP (cache-aside ViaCEP)
-
-**Status:** 🧊 congelado · criado em 2026-06-25
-**O que faz:** dado um CEP, devolve `{ cidade, bairro, uf }`. Cada CEP só bate na
-API do ViaCEP **uma vez na vida** — depois fica no banco e na memória do navegador.
-
-### Arquivos
-| Camada | Arquivo | Exporta |
-|---|---|---|
-| Servidor (motor) | `src/lib/cep.ts` | `lookupCep`, `lookupCeps`, `normalizeCep`, type `CepInfo` |
-| Servidor (action) | `src/lib/cep-actions.ts` | `resolveCepsAction` (exige login) |
-| Cliente (memo) | `src/hooks/use-cep.ts` | `useCep`, `resolveCepsCached` |
-
-### Camadas de cache (rápida → lenta)
-```
-useCep / resolveCepsCached  → memo na memória do navegador (sessão)
-        ↓ se faltar
-resolveCepsAction (servidor) → tabela cep_cache no Postgres (permanente, global)
-        ↓ se faltar
-fetch ViaCEP                 → API externa (só a 1ª vez de cada CEP)
-```
-
-### Armazenamento
-- Tabela `cep_cache` — `sql/01_schema.sql:206`. PK `cep` = **8 dígitos sem máscara**.
-- `cidade` e `bairro` são `NOT NULL` (o motor usa `""` quando o ViaCEP devolve vazio).
-
-### Como plugar
-**Server Component** (ex.: tabela renderizada no servidor):
-```ts
-import { lookupCeps } from "@/lib/cep"
-const mapa = await lookupCeps(pacotes.map((p) => p.cep))
-// mapa.get("29930000")?.cidade
-```
-
-**Client Component** (campo único):
-```tsx
-"use client"
-import { useCep } from "@/hooks/use-cep"
-const { info, loading } = useCep(cep) // info: { cidade, bairro, uf } | null
-```
-
-**Client Component** (lista, um round-trip só):
-```tsx
-import { resolveCepsCached } from "@/hooks/use-cep"
-const mapa = await resolveCepsCached(ceps)
-```
-
-### Quando descongelar
-Quando houver uma tela que precise exibir cidade/bairro a partir do CEP. O CEP já
-chega no upload de tracking (`{ codigo, cep, tel, driver, status }`) mas hoje é
-descartado — para persistir por pacote seria preciso **uma coluna nova** em
-`shopee_package` + migração (ainda não feita).
-
-### Cuidados
-- `useCep`/`resolveCepsCached` só rodam em componente `"use client"`.
-- Em Server Component, use `lookupCeps` direto (não o hook).
-- `resolveCepsAction` exige sessão logada (anti-abuso do ViaCEP).
+_(vazio — nada congelado no momento)_
 
 ---
 
@@ -97,4 +41,10 @@ TEMPLATE para próximos itens — copie o bloco abaixo:
 
 ## ✅ Descongelados (já em produção)
 
-_(vazio — mova itens para cá com a data quando uma tela passar a importá-los)_
+### GEL-001 — Resolução de CEP (cache-aside ViaCEP) · descongelado 2026-06-25
+Motor de CEP→cidade (`src/lib/cep.ts` `lookupCeps`, cache `cep_cache` + ViaCEP).
+Ligado na aba **Detalhe** do Stuck: a coluna "Cidade" resolve a partir do CEP do pacote.
+- Migração `sql/16_shopee_package_cep.sql` adicionou `shopee_package.cep` (8 dígitos s/ máscara).
+- CEP capturado nos uploads de **backlog** e **tracking** (`src/app/dashboard/operacao/shopee/uploads/actions.ts`), via header que casa com `/cep|postal|zip/i` (`src/lib/shopee/csv.ts`).
+- Cidade resolvida na leitura em `getStuckPackages` (`src/lib/shopee/stuck-queries.ts`).
+- Pacotes anteriores à migração ficam sem cidade até o próximo upload que traga o CEP.

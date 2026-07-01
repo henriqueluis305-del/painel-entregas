@@ -20,10 +20,22 @@ export type PnrWeeklyData = {
 export type PnrDriverRow = {
   driverId: string | null
   driverName: string
+  baseLabel: string | null
   count: number
   valor: number
   faturadas: number
   revertidas: number
+}
+export type PnrPackageRow = {
+  spxtn: string
+  driverId: string | null
+  driverName: string
+  baseSlug: string | null
+  baseLabel: string | null
+  status: string
+  statusPt: string
+  valor: number | null
+  createdTime: string | null // ISO 8601 (UTC) ou null
 }
 export type PnrBaseRow = {
   baseSlug: string | null
@@ -105,12 +117,27 @@ function rangeClause(col: string): string {
   return `and ($1::timestamptz is null or ${col} >= $1) and ($2::timestamptz is null or ${col} <= $2)`
 }
 
+/**
+ * Filtro XPT × HUB. As bases XPT têm slug `xpt-*` (estações "XPT_…"); as demais
+ * são hubs (`les-*`/`lrj-*`/`lba-*`, estações "LM Hub_…"). "both" não filtra.
+ * Sem parâmetros do pg — `kind` é um enum controlado, seguro para interpolar.
+ * `baseCol` é a coluna base_id no escopo da query (ex.: "base_id" ou "p.base_id").
+ */
+export type PnrKind = "xpt" | "hub" | "both"
+
+function kindClause(kind: PnrKind, baseCol: string): string {
+  if (kind === "xpt") return ` and ${baseCol} in (select id from base where slug like 'xpt-%')`
+  if (kind === "hub") return ` and ${baseCol} in (select id from base where slug not like 'xpt-%')`
+  return ""
+}
+
 /** Agrega o conjunto de PNRs, opcionalmente filtrado por base slugs e período. */
 export async function getPnrData(
   slugs: string[] = [],
   period = "tudo",
   periodFrom?: string,
   periodTo?: string,
+  kind: PnrKind = "both",
 ): Promise<PnrData> {
   return withPgClient(async (c) => {
     const hasBase = slugs.length > 0
@@ -129,6 +156,7 @@ export async function getPnrData(
       tParams.push(slugs)
       tSql += ` and base_id in (select id from base where slug = any($${tParams.length}::text[]))`
     }
+    tSql += kindClause(kind, "base_id")
     const tRow = (await c.query(tSql, tParams)).rows[0] as {
       total: number
       valor_total: number
@@ -146,6 +174,7 @@ export async function getPnrData(
       sParams.push(slugs)
       sSql += ` and base_id in (select id from base where slug = any($${sParams.length}::text[]))`
     }
+    sSql += kindClause(kind, "base_id")
     sSql += ` group by status order by count desc`
     const porStatus = (await c.query(sSql, sParams)).rows.map(
       (r: { status: string; count: number; valor: number }) => ({
@@ -158,23 +187,27 @@ export async function getPnrData(
 
     // 3) Por motorista (top 200 por valor)
     const mParams: unknown[] = [range.from, range.to, REVERSED, FOR_BILLING]
-    let mSql = `select driver_id,
-                coalesce(max(driver_name), '—')           as driver_name,
+    let mSql = `select p.driver_id,
+                coalesce(max(p.driver_name), '—')           as driver_name,
+                max(b.label)                                as base_label,
                 count(*)::int                              as count,
-                coalesce(sum(valor) filter (where status=$4),0)::float8 as valor,
-                count(*) filter (where status=$3)::int     as revertidas,
-                count(*) filter (where status=$4)::int     as faturadas
-         from shopee_pnr
-         where 1=1 ${rangeClause("created_time")}`
+                coalesce(sum(p.valor) filter (where p.status=$4),0)::float8 as valor,
+                count(*) filter (where p.status=$3)::int     as revertidas,
+                count(*) filter (where p.status=$4)::int     as faturadas
+         from shopee_pnr p
+         left join base b on b.id = p.base_id
+         where 1=1 ${rangeClause("p.created_time")}`
     if (hasBase) {
       mParams.push(slugs)
-      mSql += ` and base_id in (select id from base where slug = any($${mParams.length}::text[]))`
+      mSql += ` and p.base_id in (select id from base where slug = any($${mParams.length}::text[]))`
     }
-    mSql += ` group by driver_id order by valor desc limit 200`
+    mSql += kindClause(kind, "p.base_id")
+    mSql += ` group by p.driver_id order by valor desc limit 200`
     const porMotorista = (await c.query(mSql, mParams)).rows.map(
       (r: {
         driver_id: string | null
         driver_name: string
+        base_label: string | null
         count: number
         valor: number
         revertidas: number
@@ -182,6 +215,7 @@ export async function getPnrData(
       }) => ({
         driverId: r.driver_id,
         driverName: r.driver_name,
+        baseLabel: r.base_label,
         count: r.count,
         valor: r.valor,
         revertidas: r.revertidas,
@@ -204,6 +238,7 @@ export async function getPnrData(
       bParams.push(slugs)
       bSql += ` and p.base_id in (select id from base where slug = any($${bParams.length}::text[]))`
     }
+    bSql += kindClause(kind, "p.base_id")
     bSql += ` group by b.slug, b.label order by count desc`
     const porBase = (await c.query(bSql, bParams)).rows.map(
       (r: {
@@ -220,7 +255,7 @@ export async function getPnrData(
         valor: r.valor,
         revertidas: r.revertidas,
         faturadas: r.faturadas,
-        emAberto: r.count - r.revertidas,
+        emAberto: r.count - r.revertidas - r.faturadas,
       }),
     )
 
@@ -229,7 +264,7 @@ export async function getPnrData(
       valorTotal: tRow.valor_total,
       revertidas: tRow.revertidas,
       faturadas: tRow.faturadas,
-      emAberto: tRow.total - tRow.revertidas,
+      emAberto: tRow.total - tRow.revertidas - tRow.faturadas,
       motoristas: tRow.motoristas,
       porStatus,
       porMotorista,
@@ -239,22 +274,119 @@ export async function getPnrData(
 }
 
 /**
+ * PNRs individuais (1 por SPXTN) do recorte atual — alimenta a visão "Pacotes"
+ * e o drill-down (clique num valor agregado → lista filtrada). Mesmo filtro de
+ * base/período das agregações; ordenado da mais recente para a mais antiga.
+ */
+export async function getPnrPackages(
+  slugs: string[] = [],
+  period = "tudo",
+  periodFrom?: string,
+  periodTo?: string,
+  kind: PnrKind = "both",
+): Promise<PnrPackageRow[]> {
+  return withPgClient(async (c) => {
+    const hasBase = slugs.length > 0
+    const range = resolvePeriodRange(period, periodFrom, periodTo)
+    const params: unknown[] = [range.from, range.to]
+    let sql = `select p.spxtn,
+                p.driver_id,
+                coalesce(nullif(p.driver_name, ''), '—') as driver_name,
+                b.slug                                   as base_slug,
+                b.label                                  as base_label,
+                p.status,
+                p.valor::float8                          as valor,
+                p.created_time
+         from shopee_pnr p
+         left join base b on b.id = p.base_id
+         where 1=1 ${rangeClause("p.created_time")}`
+    if (hasBase) {
+      params.push(slugs)
+      sql += ` and p.base_id in (select id from base where slug = any($${params.length}::text[]))`
+    }
+    sql += kindClause(kind, "p.base_id")
+    sql += ` order by p.created_time desc nulls last`
+    const rows = (await c.query(sql, params)).rows as Array<{
+      spxtn: string
+      driver_id: string | null
+      driver_name: string
+      base_slug: string | null
+      base_label: string | null
+      status: string
+      valor: number | null
+      created_time: Date | string | null
+    }>
+    return rows.map((r) => ({
+      spxtn: r.spxtn,
+      driverId: r.driver_id,
+      driverName: r.driver_name,
+      baseSlug: r.base_slug,
+      baseLabel: r.base_label,
+      status: r.status,
+      statusPt: pnrStatusPt(r.status),
+      valor: r.valor,
+      createdTime:
+        r.created_time == null
+          ? null
+          : typeof r.created_time === "string"
+            ? r.created_time
+            : r.created_time.toISOString(),
+    }))
+  })
+}
+
+/**
+ * Início (segunda-feira, Brasília) da janela de 4 semanas do modo "Semanal":
+ * a semana mais recente com dados menos 3 semanas. Retorna "YYYY-MM-DD" ou
+ * null (sem PNRs). Alinhado com o `weekFilter` de {@link getPnrWeeklyData} para
+ * que KPIs, motoristas e pacotes respeitem o mesmo recorte das tabelas semanais.
+ */
+export async function getPnrWeeklyFrom(
+  slugs: string[] = [],
+  kind: PnrKind = "both",
+): Promise<string | null> {
+  return withPgClient(async (c) => {
+    const hasBase = slugs.length > 0
+    const baseFilter = hasBase
+      ? `and base_id in (select id from base where slug = any($1::text[]))`
+      : ""
+    const row = (
+      await c.query(
+        `select to_char(
+                  max(date_trunc('week', created_time at time zone '${TZ}')::date) - interval '3 weeks',
+                  'YYYY-MM-DD'
+                ) as from_date
+         from shopee_pnr
+         where created_time is not null ${baseFilter} ${kindClause(kind, "base_id")}`,
+        hasBase ? [slugs] : [],
+      )
+    ).rows[0] as { from_date: string | null }
+    return row?.from_date ?? null
+  })
+}
+
+/**
  * Agrega PNRs por semana (segunda-feira, horário de Brasília) × base.
  * Usado exclusivamente pelo modo "Semanal" — sem filtro de período (mostra tudo).
  */
-export async function getPnrWeeklyData(slugs: string[] = []): Promise<PnrWeeklyData> {
+export async function getPnrWeeklyData(
+  slugs: string[] = [],
+  kind: PnrKind = "both",
+): Promise<PnrWeeklyData> {
   return withPgClient(async (c) => {
     const hasBase = slugs.length > 0
     const baseFilter = hasBase
       ? `and p.base_id in (select id from base where slug = any($3::text[]))`
       : ""
+    const kindMain = kindClause(kind, "p.base_id")
+    const kindSub = kindClause(kind, "base_id")
 
     // 4 semanas mais recentes nos dados (semana máxima − 3 semanas anteriores)
     const weekFilter = `
       and date_trunc('week', p.created_time at time zone '${TZ}')::date >= (
         select max(date_trunc('week', created_time at time zone '${TZ}')::date) - interval '3 weeks'
         from shopee_pnr
-        where created_time is not null ${baseFilter.replace(/\bp\./g, "")}
+        where created_time is not null ${baseFilter.replace(/\bp\./g, "")} ${kindSub}
       )`
 
     const raw = (
@@ -267,7 +399,7 @@ export async function getPnrWeeklyData(slugs: string[] = []): Promise<PnrWeeklyD
                 count(*) filter (where p.status = $2)::int                      as faturadas
          from shopee_pnr p
          left join base b on b.id = p.base_id
-         where p.created_time is not null ${baseFilter} ${weekFilter}
+         where p.created_time is not null ${baseFilter} ${kindMain} ${weekFilter}
          group by b.slug, b.label, week_start
          order by week_start, b.label nulls last`,
         hasBase ? [REVERSED, FOR_BILLING, slugs] : [REVERSED, FOR_BILLING],

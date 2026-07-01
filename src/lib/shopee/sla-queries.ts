@@ -122,6 +122,53 @@ export async function getSlaData(
 
 export type SlaPoint = { label: string; pct: number }
 
+type EmbeddedSlaCkpt = {
+  seq: number
+  label: string
+  total: number
+  entregues: number
+  base: { slug: string; operacao_id: string } | null
+}
+
+/** Crescimento do SLA: SLA% por upload (checkpoint) do dia atual, agregado nas bases. */
+export async function getSlaCheckpoints(
+  operacaoId: string,
+  baseSlugs: string[] = [],
+): Promise<SlaPoint[]> {
+  const sb = createAdminClient()
+  // só o dia mais recente (o "dia atual" do painel)
+  const { data: last } = await sb
+    .from("shopee_sla_checkpoint")
+    .select("data_pt_br, base!inner(operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .order("ts", { ascending: false })
+    .limit(1)
+  const day = (last ?? [])[0]?.data_pt_br as string | undefined
+  if (!day) return []
+
+  let q = sb
+    .from("shopee_sla_checkpoint")
+    .select("seq, label, total, entregues, base!inner(slug, operacao_id)")
+    .eq("base.operacao_id", operacaoId)
+    .eq("data_pt_br", day)
+    .order("seq")
+  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
+
+  const { data, error } = await q
+  if (error) throw new Error(`getSlaCheckpoints: ${error.message}`)
+
+  const map = new Map<number, { label: string; total: number; entregues: number }>()
+  for (const r of (data ?? []) as unknown as EmbeddedSlaCkpt[]) {
+    const m = map.get(r.seq) ?? { label: r.label, total: 0, entregues: 0 }
+    m.total += r.total
+    m.entregues += r.entregues
+    map.set(r.seq, m)
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, m]) => ({ label: m.label, pct: pct(m.entregues, m.total) }))
+}
+
 function parseBrDate(s: string): number {
   const [d, m, y] = s.split("/").map(Number)
   return new Date(y, (m ?? 1) - 1, d ?? 1).getTime()

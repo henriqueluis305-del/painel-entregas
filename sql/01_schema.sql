@@ -224,6 +224,7 @@ create table if not exists shopee_package (
   driver_id      text references driver(id),
   dias_preso     numeric(6,2),                       -- LM Hub Days
   agency         text,
+  cep            text,                               -- CEP do destino (8 dígitos s/ máscara) → cidade via ViaCEP
   last_backlog_date date,                            -- dia do backlog mais recente (limpeza diária da visão)
   first_seen_at  timestamptz not null default now(),
   last_status_at timestamptz not null default now(),

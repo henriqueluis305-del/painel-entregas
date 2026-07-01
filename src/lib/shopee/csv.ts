@@ -34,6 +34,26 @@ export function parseCsv(text: string): string[][] {
   return rows
 }
 
+/** Header que parece guardar CEP (cep / postal code / zip). */
+export const CEP_HEADER_RE = /cep|postal|zip/i
+
+/** Extrai 8 dígitos de um valor de CEP. null se não tiver 8 dígitos. */
+export function cepDigits(raw: string | null | undefined): string | null {
+  const d = (raw ?? "").replace(/\D+/g, "")
+  return d.length === 8 ? d : null
+}
+
+/** Acha o 1º valor de CEP válido num registro {header: valor}. */
+export function pickCep(o: Record<string, string>): string | null {
+  for (const k of Object.keys(o)) {
+    if (CEP_HEADER_RE.test(k)) {
+      const cep = cepDigits(o[k])
+      if (cep) return cep
+    }
+  }
+  return null
+}
+
 /** Lê CSV como lista de objetos {header: valor}. Header = 1ª linha. */
 export function parseCsvObjects(text: string): Record<string, string>[] {
   const rows = parseCsv(text)

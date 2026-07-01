@@ -5,22 +5,36 @@ import type { Client } from "pg"
 import { revalidatePath } from "next/cache"
 
 import { getSessionProfile } from "@/lib/auth"
+import { lookupCeps, normalizeCep } from "@/lib/cep"
+import { hasPerm, PERMS, type Permission } from "@/lib/permissions"
 import { withPgClient, chunk } from "@/lib/pg"
 import { SHOPEE_BASE_PATH } from "@/lib/shopee"
 import { resolveDriver, dedupeById, type ParsedDriver } from "@/lib/shopee/drivers"
 import { isStuck, parseDiasPreso, resolveBaseSlug } from "@/lib/shopee/stuck"
 import { parseDsCells, calcDs } from "@/lib/shopee/ds"
-import { calcSla } from "@/lib/shopee/sla"
-import { parseCsvObjects } from "@/lib/shopee/csv"
+import { calcSla, slaCategory } from "@/lib/shopee/sla"
+import { parseCsvObjects, CEP_HEADER_RE, cepDigits, pickCep } from "@/lib/shopee/csv"
 import { parsePnr } from "@/lib/shopee/pnr"
 
 export type AnalyzeResult = { ok: boolean; title: string; lines: string[]; warn?: string }
 export type ApplyResult = { ok: boolean; message: string }
 
-async function requireAdmin(): Promise<string> {
+// SLA e DS são a "tela de trabalho" do monitoramento — liberados por permissão.
+// Os demais (backlog/tracking/pnr) seguem restritos a admin.
+const KIND_PERM: Record<string, Permission> = {
+  sla: PERMS.UPLOAD_CSV_SLA,
+  ds: PERMS.UPLOAD_XLSX_DS,
+}
+
+/** Autoriza o upload de um `kind`: permissão específica quando houver, senão admin. */
+async function requireUploadPerm(kind: string): Promise<string> {
   const s = await getSessionProfile()
-  if (!s?.profile?.is_admin) throw new Error("Não autorizado")
-  return s.email
+  const profile = s?.profile
+  if (!profile) throw new Error("Não autorizado")
+  const needed = KIND_PERM[kind]
+  const ok = needed ? hasPerm(profile, needed) : profile.is_admin
+  if (!ok) throw new Error("Não autorizado")
+  return s!.email
 }
 
 async function logUpload(
@@ -76,7 +90,7 @@ function cellText(v: ExcelJS.CellValue): string {
 }
 
 // ---------- parsers ----------
-type BacklogRow = { baseSlug: string; codigo: string; status: string; dias: number | null; driverId: string | null; agency: string | null }
+type BacklogRow = { baseSlug: string; codigo: string; status: string; dias: number | null; driverId: string | null; agency: string | null; cep: string | null }
 async function parseBacklog(files: File[]) {
   const rows: BacklogRow[] = []
   const drivers: ParsedDriver[] = []
@@ -86,6 +100,7 @@ async function parseBacklog(files: File[]) {
     const col: Record<string, number> = {}
     ws.getRow(1).eachCell((c, n) => (col[cellText(c.value)] = n))
     const get = (r: ExcelJS.Row, name: string) => (col[name] ? cellText(r.getCell(col[name]).value) : "")
+    const cepHeader = Object.keys(col).find((h) => CEP_HEADER_RE.test(h))
     for (let i = 2; i <= ws.rowCount; i++) {
       const r = ws.getRow(i)
       const codigo = get(r, "Shipment ID")
@@ -102,6 +117,7 @@ async function parseBacklog(files: File[]) {
         dias: parseDiasPreso(get(r, "LM Hub Days")),
         driverId: drv?.id ?? null,
         agency: get(r, "Agency Name") || null,
+        cep: cepHeader ? cepDigits(get(r, cepHeader)) : null,
       })
     }
   }
@@ -128,7 +144,7 @@ async function parseDs(files: File[]) {
 }
 
 function parseTracking(ts: string[]) {
-  const latest = new Map<string, { status: string; driverId: string | null }>()
+  const latest = new Map<string, { status: string; driverId: string | null; cep: string | null }>()
   const drivers: ParsedDriver[] = []
   let total = 0
   for (const t of ts) {
@@ -138,24 +154,33 @@ function parseTracking(ts: string[]) {
       total++
       const drv = resolveDriver(o["Driver Name"] || "", o["Driver ID"] || "")
       if (drv) drivers.push(drv)
-      latest.set(codigo, { status: (o["Status"] || "").trim(), driverId: drv?.id ?? null })
+      latest.set(codigo, { status: (o["Status"] || "").trim(), driverId: drv?.id ?? null, cep: pickCep(o) })
     }
   }
   return { latest, drivers: dedupeById(drivers), total }
 }
 
+type SlaRow = { status: string; cep: string | null; driverId: string | null; driverName: string }
 function parseSla(ts: string[]) {
-  const byCode = new Map<string, string>()
+  const byCode = new Map<string, SlaRow>()
+  const drivers: ParsedDriver[] = []
   let total = 0
   for (const t of ts) {
     for (const o of parseCsvObjects(t)) {
       const codigo = (o["Order ID"] || "").trim()
       if (!codigo) continue
       total++
-      byCode.set(codigo, (o["Status"] || "").trim())
+      const drv = resolveDriver(o["Driver Name"] || "", o["Driver ID"] || "")
+      if (drv) drivers.push(drv)
+      byCode.set(codigo, {
+        status: (o["Status"] || "").trim(),
+        cep: pickCep(o),
+        driverId: drv?.id ?? null,
+        driverName: drv?.name ?? "",
+      })
     }
   }
-  return { byCode, total }
+  return { byCode, total, drivers: dedupeById(drivers) }
 }
 
 // ---------- helpers de DB ----------
@@ -191,7 +216,8 @@ async function recordStuckCheckpoint(c: Client, baseIds: string[], label: string
     await c.query(
       `insert into shopee_stuck_checkpoint (base_id, seq, data_pt_br, label, total, ainda_stuck, resolvidos)
        select $1::varchar,$2::integer,$3::varchar,$4::varchar, count(*),
-         count(*) filter (where delivered_at is null), count(*) filter (where delivered_at is not null)
+         count(*) filter (where delivered_at is null and status not in ('Delivering','SP_Collection_Collected','SP_Ready_Collection','Delivered')),
+         count(*) filter (where delivered_at is not null or status in ('Delivering','SP_Collection_Collected','SP_Ready_Collection','Delivered'))
        from shopee_package where base_id=$1::varchar
        on conflict (base_id, data_pt_br, seq) do update set total=excluded.total, ainda_stuck=excluded.ainda_stuck, resolvidos=excluded.resolvidos, ts=now()`,
       [baseId, seq, dataPtBr, label],
@@ -201,8 +227,8 @@ async function recordStuckCheckpoint(c: Client, baseIds: string[], label: string
 
 // ============================ ANALYZE ============================
 export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
-  await requireAdmin()
   const kind = String(fd.get("kind") || "")
+  await requireUploadPerm(kind)
   const baseSlug = String(fd.get("baseSlug") || "")
   const files = getFiles(fd)
   if (!files.length) return { ok: false, title: "Nenhum arquivo", lines: ["Selecione ao menos um arquivo."] }
@@ -262,6 +288,8 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
 
     if (kind === "ds") {
       const items = await parseDs(files)
+      // Base escolhida no seletor vale p/ todas as linhas (mesma base do SLA).
+      if (baseSlug) for (const i of items) i.baseSlug = baseSlug
       return await withPgClient(async (c) => {
         const op = await shopeeOpId(c)
         const bmap = await baseIdMap(c, op)
@@ -287,7 +315,7 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
     if (kind === "sla") {
       if (!baseSlug) return { ok: false, title: "SLA", lines: ["Selecione a base do export."] }
       const { byCode, total } = parseSla(await texts(files))
-      const b = calcSla([...byCode.values()])
+      const b = calcSla([...byCode.values()].map((r) => r.status))
       return await withPgClient(async (c) => {
         const op = await shopeeOpId(c)
         const cur = await c.query(
@@ -357,8 +385,8 @@ export async function analyzeUpload(fd: FormData): Promise<AnalyzeResult> {
 
 // ============================ APPLY ============================
 export async function applyUpload(fd: FormData): Promise<ApplyResult> {
-  const email = await requireAdmin()
   const kind = String(fd.get("kind") || "")
+  const email = await requireUploadPerm(kind)
   const baseSlug = String(fd.get("baseSlug") || "")
   const files = getFiles(fd)
   if (!files.length) return { ok: false, message: "Nenhum arquivo." }
@@ -376,18 +404,19 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
         const keyToId = new Map<string, number>()
         for (const ch of chunk(valid, 1000)) {
           const vals: unknown[] = []
-          const dIdx = ch.length * 6 + 1
+          const dIdx = ch.length * 7 + 1
           const tuples = ch.map((r, i) => {
-            const b = i * 6
-            vals.push(bmap.get(r.baseSlug), r.codigo, r.status, r.driverId && validDrv.has(r.driverId) ? r.driverId : null, r.dias, r.agency)
-            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${dIdx})`
+            const b = i * 7
+            vals.push(bmap.get(r.baseSlug), r.codigo, r.status, r.driverId && validDrv.has(r.driverId) ? r.driverId : null, r.dias, r.agency, r.cep)
+            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${dIdx})`
           })
           vals.push(backlogDate)
           const res = await c.query(
-            `insert into shopee_package (base_id, codigo, status, driver_id, dias_preso, agency, last_backlog_date)
+            `insert into shopee_package (base_id, codigo, status, driver_id, dias_preso, agency, cep, last_backlog_date)
              values ${tuples.join(",")}
              on conflict (base_id, codigo) do update set status=excluded.status, driver_id=excluded.driver_id,
-               dias_preso=excluded.dias_preso, agency=excluded.agency, last_backlog_date=excluded.last_backlog_date,
+               dias_preso=excluded.dias_preso, agency=excluded.agency, cep=coalesce(excluded.cep, shopee_package.cep),
+               last_backlog_date=excluded.last_backlog_date,
                last_status_at=now(), updated_at=now()
              returning id, base_id, codigo`,
             vals,
@@ -426,7 +455,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
         const { valid: validDrv } = await registerDrivers(c, op, drivers)
         const existing = await c.query("select id, codigo, base_id, delivered_at from shopee_package")
         const byCode = new Map(existing.rows.map((r) => [r.codigo as string, { id: Number(r.id), baseId: String(r.base_id) }]))
-        const ids: number[] = [], statuses: string[] = [], drv: (string | null)[] = []
+        const ids: number[] = [], statuses: string[] = [], drv: (string | null)[] = [], ceps: (string | null)[] = []
         const bases = new Set<string>()
         for (const [codigo, info] of latest) {
           const pkg = byCode.get(codigo)
@@ -434,15 +463,17 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
           ids.push(pkg.id)
           statuses.push(info.status)
           drv.push(info.driverId && validDrv.has(info.driverId) ? info.driverId : null)
+          ceps.push(info.cep)
           bases.add(pkg.baseId)
         }
         if (ids.length) {
           await c.query(
             `update shopee_package p set status=u.status, driver_id=coalesce(u.driver_id, p.driver_id),
+               cep=coalesce(u.cep, p.cep),
                last_status_at=now(), updated_at=now(),
                delivered_at=case when u.status='Delivered' and p.delivered_at is null then now() else p.delivered_at end
-             from unnest($1::bigint[], $2::text[], $3::text[]) as u(id, status, driver_id) where p.id=u.id`,
-            [ids, statuses, drv],
+             from unnest($1::bigint[], $2::text[], $3::text[], $4::text[]) as u(id, status, driver_id, cep) where p.id=u.id`,
+            [ids, statuses, drv, ceps],
           )
           await c.query(
             `insert into shopee_package_event (package_id, status, dias_preso, driver_id)
@@ -462,6 +493,8 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
 
     if (kind === "ds") {
       const items = await parseDs(files)
+      // Base escolhida no seletor vale p/ todas as linhas (mesma base do SLA).
+      if (baseSlug) for (const i of items) i.baseSlug = baseSlug
       const msg = await withPgClient(async (c) => {
         const op = await shopeeOpId(c)
         const bmap = await baseIdMap(c, op)
@@ -500,28 +533,131 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
 
     if (kind === "sla") {
       if (!baseSlug) return { ok: false, message: "Selecione a base." }
-      const { byCode } = parseSla(await texts(files))
-      const statuses = [...byCode.values()]
+      const { byCode, drivers } = parseSla(await texts(files))
+      const rows = [...byCode.values()]
+      const statuses = rows.map((r) => r.status)
       const b = calcSla(statuses)
       const porStatus: Record<string, number> = {}
       for (const s of statuses) porStatus[s || "(vazio)"] = (porStatus[s || "(vazio)"] ?? 0) + 1
+
+      // Cidade = município resolvido do CEP (cep_cache + ViaCEP nos que faltam).
+      // Resolve fora do withPgClient — lookupCeps abre a própria conexão.
+      const cidadePorCep = await lookupCeps(rows.map((r) => r.cep ?? ""))
+      const cidadeOf = (cep: string | null) => {
+        const n = normalizeCep(cep)
+        return (n && cidadePorCep.get(n)?.cidade) || ""
+      }
+
+      // Agrega statuses por cidade (p/ a tabela por cidade do SLA).
+      const porCidade = new Map<string, string[]>()
+      for (const r of rows) {
+        const cid = cidadeOf(r.cep)
+        const arr = porCidade.get(cid) ?? []
+        arr.push(r.status)
+        porCidade.set(cid, arr)
+      }
+
+      // Itens do balde "Outros" (faltantes + demais) com código p/ o drill/copiar.
+      const outrosItens: { cidade: string; status: string; codigo: string }[] = []
+      for (const [codigo, r] of byCode) {
+        const cat = slaCategory(r.status)
+        if (cat === "faltante" || cat === "outros") {
+          outrosItens.push({ cidade: cidadeOf(r.cep), status: r.status, codigo })
+        }
+      }
+
+      // PROCV nome→cidade: cidade dominante de cada motorista (p/ o DS cruzar).
+      const drvCidade = new Map<string, { name: string; counts: Map<string, number> }>()
+      for (const r of rows) {
+        if (!r.driverId) continue
+        const e = drvCidade.get(r.driverId) ?? { name: r.driverName, counts: new Map() }
+        if (!e.name && r.driverName) e.name = r.driverName
+        const cid = cidadeOf(r.cep)
+        e.counts.set(cid, (e.counts.get(cid) ?? 0) + 1)
+        drvCidade.set(r.driverId, e)
+      }
+
       const m = `SLA aplicado p/ ${baseSlug}: ${b.pct}% (${b.total} pacotes).`
       await withPgClient(async (c) => {
         const op = await shopeeOpId(c)
         const base = await c.query("select id from base where operacao_id=$1 and slug=$2", [op, baseSlug])
         if (!base.rows.length) throw new Error(`base ${baseSlug} não encontrada`)
+        const baseId = String(base.rows[0].id)
+        const dataPtBr = todayBr()
+        const { valid: validDrv } = await registerDrivers(c, op, drivers)
+
         await c.query(
           `insert into shopee_sla_record (base_id, data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct, por_status)
            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            on conflict (base_id, data_pt_br) do update set total=excluded.total, entregues=excluded.entregues,
              em_rota=excluded.em_rota, ocorrencias=excluded.ocorrencias, faltantes=excluded.faltantes,
              outros=excluded.outros, sla_pct=excluded.sla_pct, por_status=excluded.por_status, updated_at=now()`,
-          [String(base.rows[0].id), todayBr(), b.total, b.entregues, b.emRota, b.ocorrencias, b.faltantes, b.outros, b.pct, JSON.stringify(porStatus)],
+          [baseId, dataPtBr, b.total, b.entregues, b.emRota, b.ocorrencias, b.faltantes, b.outros, b.pct, JSON.stringify(porStatus)],
         )
+
+        // Checkpoint: cada upload vira um ponto no Crescimento SLA do dia.
+        const seq = (await c.query("select coalesce(max(seq),-1)+1 as seq from shopee_sla_checkpoint where base_id=$1 and data_pt_br=$2", [baseId, dataPtBr])).rows[0].seq
+        await c.query(
+          `insert into shopee_sla_checkpoint (base_id, seq, data_pt_br, label, total, entregues)
+           values ($1,$2,$3,$4,$5,$6)
+           on conflict (base_id, data_pt_br, seq) do update set total=excluded.total, entregues=excluded.entregues, ts=now()`,
+          [baseId, seq, dataPtBr, `SLA ${fileTime(files)}`, b.total, b.entregues],
+        )
+
+        // SLA por cidade — regrava o dia inteiro (o arquivo é o estado completo).
+        await c.query("delete from shopee_sla_cidade where base_id=$1 and data_pt_br=$2", [baseId, dataPtBr])
+        for (const [cid, sts] of porCidade) {
+          const cb = calcSla(sts)
+          await c.query(
+            `insert into shopee_sla_cidade (base_id, data_pt_br, cidade, total, entregues, em_rota, ocorrencias, faltantes, outros)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [baseId, dataPtBr, cid, cb.total, cb.entregues, cb.emRota, cb.ocorrencias, cb.faltantes, cb.outros],
+          )
+        }
+
+        // Itens de "Outros" por cidade (código BR) — regrava o dia inteiro.
+        await c.query("delete from shopee_sla_outros_item where base_id=$1 and data_pt_br=$2", [baseId, dataPtBr])
+        for (const ch of chunk(outrosItens, 1000)) {
+          const vals: unknown[] = []
+          const tuples = ch.map((it, i) => {
+            const b = i * 5
+            vals.push(baseId, dataPtBr, it.cidade, it.status, it.codigo)
+            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5})`
+          })
+          await c.query(
+            `insert into shopee_sla_outros_item (base_id, data_pt_br, cidade, status, codigo) values ${tuples.join(",")}`,
+            vals,
+          )
+        }
+
+        // Cidade do motorista (PROCV) — só os drivers registrados, cidade dominante.
+        await c.query("delete from shopee_sla_driver_cidade where base_id=$1 and data_pt_br=$2", [baseId, dataPtBr])
+        for (const [driverId, e] of drvCidade) {
+          if (!validDrv.has(driverId)) continue
+          let best = "", bestN = -1
+          for (const [cid, n] of e.counts) if (n > bestN) { best = cid; bestN = n }
+          await c.query(
+            `insert into shopee_sla_driver_cidade (base_id, data_pt_br, driver_id, driver_name, cidade)
+             values ($1,$2,$3,$4,$5)
+             on conflict (base_id, data_pt_br, driver_id) do update set driver_name=excluded.driver_name, cidade=excluded.cidade, updated_at=now()`,
+            [baseId, dataPtBr, driverId, e.name, best],
+          )
+        }
+
+        // Auto-descoberta de cidades (entram visíveis; o toggle do admin persiste).
+        for (const cid of porCidade.keys()) {
+          if (!cid) continue
+          await c.query(
+            "insert into shopee_base_cidade (base_id, cidade) values ($1,$2) on conflict (base_id, cidade) do nothing",
+            [baseId, cid],
+          )
+        }
+
         await logUpload(c, email, "sla", filenames, b.total, m)
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/sla`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
+      revalidatePath(`${SHOPEE_BASE_PATH}/monitoramento`)
       return { ok: true, message: m }
     }
 

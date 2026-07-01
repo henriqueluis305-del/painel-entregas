@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { requireOperacaoAccess } from "@/lib/auth"
+import { resolvePerms } from "@/lib/permissions"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { SHOPEE_SLUG } from "@/lib/shopee"
 
@@ -21,6 +22,7 @@ export default async function ShopeeLayout({
   if (!op) notFound()
 
   const isAdmin = !!session.profile?.is_admin
+  const perms = session.profile ? resolvePerms(session.profile) : []
 
   return (
     <>
@@ -52,7 +54,7 @@ export default async function ShopeeLayout({
         </div>
       </header>
 
-      <ShopeeSubtabs isAdmin={isAdmin} />
+      <ShopeeSubtabs isAdmin={isAdmin} perms={perms} />
 
       <div className="flex flex-col gap-6 p-4 lg:p-6">{children}</div>
     </>

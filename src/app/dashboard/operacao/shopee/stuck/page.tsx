@@ -1,17 +1,9 @@
-import { BoxesIcon, CheckCircle2Icon, MapPinIcon, UsersIcon } from "lucide-react"
-
-import { KpiCard } from "@/components/kpi-card"
 import { ShopeeSubtabShell } from "@/components/shopee/subtab-shell"
-import { StuckCharts } from "@/components/shopee/stuck-charts"
-import { StuckViewTabs } from "@/components/shopee/stuck-view-tabs"
+import { StuckPanel } from "@/components/shopee/stuck-panel"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { effectiveBases, parseShopeeFilters, SHOPEE_SLUG } from "@/lib/shopee"
 import { getShopeeConfig } from "@/lib/shopee/config"
-import {
-  computeStuckKpis,
-  getStuckCheckpoints,
-  getStuckPackages,
-} from "@/lib/shopee/stuck-queries"
+import { getStuckCheckpoints, getStuckPackages } from "@/lib/shopee/stuck-queries"
 
 export default async function StuckPage({
   searchParams,
@@ -28,23 +20,13 @@ export default async function StuckPage({
         getStuckCheckpoints(op.id, slugs),
       ])
     : [[], []]
-  const kpi = computeStuckKpis(rows)
 
   return (
     <ShopeeSubtabShell
       title="Stuck"
       description="Pacotes presos: floor(LM Hub Days) ≥ 1 e status ≠ Delivered."
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={BoxesIcon} label="Stuck ativos" value={kpi.ativos} color="#f59e0b" />
-        <KpiCard icon={CheckCircle2Icon} label="Entregues" value={kpi.entregues} color="#22c55e" />
-        <KpiCard icon={UsersIcon} label="Motoristas" value={kpi.motoristas} color="#0ea5e9" />
-        <KpiCard icon={MapPinIcon} label="Bases" value={kpi.bases} color="#a78bfa" />
-      </div>
-
-      <StuckCharts points={points} kpi={kpi} />
-
-      <StuckViewTabs rows={rows} />
+      <StuckPanel rows={rows} points={points} />
     </ShopeeSubtabShell>
   )
 }

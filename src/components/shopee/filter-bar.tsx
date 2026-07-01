@@ -38,9 +38,12 @@ const ALL = "__all__"
 export function ShopeeFilterBar({
   bases,
   defaultPeriod = SHOPEE_DEFAULT_PERIOD,
+  extra,
 }: {
   bases: ShopeeBaseOption[]
   defaultPeriod?: string
+  /** Controle extra da subtab (ex.: seletor de semana do PNR), ao lado dos filtros. */
+  extra?: React.ReactNode
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -71,7 +74,7 @@ export function ShopeeFilterBar({
         <Select
           value={filters.base || ALL}
           onValueChange={(v) =>
-            apply({ base: !v || v === ALL ? null : v, bases: null })
+            apply({ base: !v || v === ALL ? null : v, bases: null, semana: null })
           }
         >
           <SelectTrigger size="sm" className="w-[190px]">
@@ -98,6 +101,8 @@ export function ShopeeFilterBar({
         defaultPeriod={defaultPeriod}
         onApply={apply}
       />
+
+      {extra}
 
       {/* Indicadores de estado */}
       <div className="text-muted-foreground ml-auto flex items-center gap-2 text-xs">
@@ -183,6 +188,7 @@ function AdvancedFilters({
       bases: selected.length ? selected.join(",") : null,
       from: null,
       to: null,
+      semana: null, // muda período/bases → some o foco de semana
     }
     if (selected.length) patch.base = null // multi tem precedência: limpa o filtro básico só quando há multi
 
@@ -210,7 +216,7 @@ function AdvancedFilters({
     setDe("")
     setAte("")
     setSelected([])
-    onApply({ period: null, bases: null, base: null, from: null, to: null })
+    onApply({ period: null, bases: null, base: null, from: null, to: null, semana: null, tipo: null })
     setOpen(false)
   }
 

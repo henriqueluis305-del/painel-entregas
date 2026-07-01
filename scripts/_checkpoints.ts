@@ -60,8 +60,8 @@ export async function recordCheckpoints(
       `insert into shopee_stuck_checkpoint (base_id, seq, data_pt_br, label, total, ainda_stuck, resolvidos)
        select $1::varchar, $2::integer, $3::varchar, $4::varchar,
          count(*),
-         count(*) filter (where delivered_at is null),
-         count(*) filter (where delivered_at is not null)
+         count(*) filter (where delivered_at is null and status not in ('Delivering','SP_Collection_Collected','SP_Ready_Collection','Delivered')),
+         count(*) filter (where delivered_at is not null or status in ('Delivering','SP_Collection_Collected','SP_Ready_Collection','Delivered'))
        from shopee_package where base_id=$1::varchar
        on conflict (base_id, data_pt_br, seq) do update set
          total=excluded.total, ainda_stuck=excluded.ainda_stuck,

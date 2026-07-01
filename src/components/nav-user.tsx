@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useTheme } from "@/components/theme-provider"
 
 import { createClient } from "@/lib/supabase/client"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -10,7 +11,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -19,7 +25,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { EllipsisVerticalIcon, LogOutIcon } from "lucide-react"
+import {
+  EllipsisVerticalIcon,
+  LogOutIcon,
+  MoonIcon,
+  PaletteIcon,
+  SunIcon,
+} from "lucide-react"
 
 function initials(name: string) {
   return (
@@ -40,6 +52,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
 
   async function handleLogout() {
     const supabase = createClient()
@@ -93,6 +106,32 @@ export function NavUser({
                 </div>
               </DropdownMenuLabel>
             </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PaletteIcon />
+                Tema
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={theme}
+                  onValueChange={setTheme}
+                >
+                  <DropdownMenuRadioItem value="dark">
+                    <MoonIcon />
+                    Escuro
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="light">
+                    <SunIcon />
+                    Claro
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="blue">
+                    <PaletteIcon />
+                    Escuro (azul)
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />

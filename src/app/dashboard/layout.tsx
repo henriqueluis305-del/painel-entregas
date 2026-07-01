@@ -43,6 +43,7 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider
+      className="h-svh overflow-hidden"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -56,7 +57,7 @@ export default async function DashboardLayout({
         perms={perms}
         operacoes={operacoes}
       />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="overflow-y-auto">{children}</SidebarInset>
       <Toaster />
     </SidebarProvider>
   )

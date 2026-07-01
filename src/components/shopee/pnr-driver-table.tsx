@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { type PnrDrill } from "@/lib/shopee/pnr-drill"
 import { type PnrDriverRow } from "@/lib/shopee/pnr-queries"
 
 const brl = (n: number) =>
@@ -24,7 +25,8 @@ type SortDir = "asc" | "desc"
 
 const COLUMNS: { key: SortKey; label: string; numeric: boolean }[] = [
   { key: "driverName", label: "Motorista", numeric: false },
-  { key: "count", label: "PNRs", numeric: true },
+  { key: "baseLabel", label: "Base", numeric: false },
+  { key: "count", label: "PNR", numeric: true },
   { key: "valor", label: "Valor", numeric: true },
   { key: "faturadas", label: "Para faturamento", numeric: true },
   { key: "revertidas", label: "Revertidas", numeric: true },
@@ -37,16 +39,49 @@ function SortIcon({ col, sortKey, dir }: { col: SortKey; sortKey: SortKey; dir: 
     : <ArrowDownIcon className="ml-1 inline size-3" />
 }
 
+/** Drill com identidade do motorista (id quando há; senão casa por nome).
+ *  `focusWeek` amarra o drill à semana em foco, casando com a listagem exibida. */
+function driverDrill(d: PnrDriverRow, focusWeek: string | null, extra: Partial<PnrDrill>): PnrDrill {
+  return {
+    label: `Motorista: ${d.driverName}`,
+    driverId: d.driverId,
+    driverName: d.driverName,
+    ...(focusWeek ? { weekStart: focusWeek } : {}),
+    ...extra,
+  }
+}
+
+/** Valor clicável → drill; sem onDrill vira texto simples. Para o clique na
+ *  linha (que abre o diálogo de desempenho), usa stopPropagation. */
+function DrillCell({ text, drill, onDrill }: { text: string; drill: PnrDrill; onDrill?: (d: PnrDrill) => void }) {
+  if (!onDrill) return <span>{text}</span>
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onDrill(drill) }}
+      className="hover:text-primary cursor-pointer hover:underline"
+    >
+      {text}
+    </button>
+  )
+}
+
 export function PnrDriverTable({
   rows,
   operacaoId,
   baseSlugs = [],
   referenceDay,
+  focusWeek = null,
+  onDrill,
 }: {
   rows: PnrDriverRow[]
   operacaoId?: string
   baseSlugs?: string[]
   referenceDay: string
+  /** Semana em foco ("YYYY-MM-DD") — amarra os drills à semana exibida. */
+  focusWeek?: string | null
+  /** Clique num valor → abre a visão "Pacotes" filtrada por aquele motorista. */
+  onDrill?: (drill: PnrDrill) => void
 }) {
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("valor")
@@ -77,8 +112,8 @@ export function PnrDriverTable({
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
+      const av = a[sortKey] ?? ""
+      const bv = b[sortKey] ?? ""
       const cmp =
         typeof av === "string" && typeof bv === "string"
           ? av.localeCompare(bv, "pt-BR")
@@ -102,11 +137,14 @@ export function PnrDriverTable({
       <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
-            <TableRow>
-              {COLUMNS.map((col) => (
+            <TableRow className="bg-muted/50">
+              {COLUMNS.map((col, i) => (
                 <TableHead
                   key={col.key}
-                  className={`cursor-pointer select-none ${col.numeric ? "text-right" : ""}`}
+                  className={cn(
+                    "cursor-pointer select-none font-semibold",
+                    i > 0 && "border-l text-center",
+                  )}
                   onClick={() => handleSort(col.key)}
                 >
                   {col.label}
@@ -118,7 +156,7 @@ export function PnrDriverTable({
           <TableBody>
             {sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-8 text-center text-sm">
+                <TableCell colSpan={COLUMNS.length} className="text-muted-foreground py-8 text-center text-sm">
                   Nenhum motorista encontrado.
                 </TableCell>
               </TableRow>
@@ -139,10 +177,21 @@ export function PnrDriverTable({
                   className={cn(d.driverId && "cursor-pointer outline-none focus-visible:bg-muted/60")}
                 >
                   <TableCell className="font-medium">{d.driverName}</TableCell>
-                  <TableCell className="text-right tabular-nums">{d.count.toLocaleString("pt-BR")}</TableCell>
-                  <TableCell className="text-right tabular-nums">{brl(d.valor)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{d.faturadas.toLocaleString("pt-BR")}</TableCell>
-                  <TableCell className="text-right tabular-nums">{d.revertidas.toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="border-l text-center">
+                    {d.baseLabel ?? <span className="text-muted-foreground italic">Sem base</span>}
+                  </TableCell>
+                  <TableCell className="border-l text-center tabular-nums">
+                    <DrillCell text={d.count.toLocaleString("pt-BR")} onDrill={onDrill} drill={driverDrill(d, focusWeek, {})} />
+                  </TableCell>
+                  <TableCell className="border-l text-center tabular-nums">
+                    <DrillCell text={brl(d.valor)} onDrill={onDrill} drill={driverDrill(d, focusWeek, { bucket: "forbilling", label: `Motorista: ${d.driverName} · Para faturamento` })} />
+                  </TableCell>
+                  <TableCell className="border-l text-center tabular-nums">
+                    <DrillCell text={d.faturadas.toLocaleString("pt-BR")} onDrill={onDrill} drill={driverDrill(d, focusWeek, { bucket: "forbilling", label: `Motorista: ${d.driverName} · Para faturamento` })} />
+                  </TableCell>
+                  <TableCell className="border-l text-center tabular-nums">
+                    <DrillCell text={d.revertidas.toLocaleString("pt-BR")} onDrill={onDrill} drill={driverDrill(d, focusWeek, { bucket: "reversed", label: `Motorista: ${d.driverName} · Revertidas` })} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

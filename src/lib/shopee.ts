@@ -1,5 +1,7 @@
 // Constantes compartilhadas (client + server) da operação Shopee.
 
+import { PERMS, type Permission } from "@/lib/permissions"
+
 export const SHOPEE_SLUG = "shopee"
 export const SHOPEE_BASE_PATH = `/dashboard/operacao/${SHOPEE_SLUG}`
 
@@ -7,6 +9,8 @@ export type ShopeeTab = {
   slug: string
   label: string
   admin?: boolean
+  /** Visível se o usuário tiver QUALQUER uma destas permissões (ou for admin). */
+  anyPerm?: Permission[]
 }
 
 export const SHOPEE_TABS: ShopeeTab[] = [
@@ -15,6 +19,11 @@ export const SHOPEE_TABS: ShopeeTab[] = [
   { slug: "ds", label: "DS" },
   { slug: "stuck", label: "Stuck" },
   { slug: "pnr", label: "PNR" },
+  {
+    slug: "monitoramento",
+    label: "Monitoramento",
+    anyPerm: [PERMS.UPLOAD_CSV_SLA, PERMS.UPLOAD_XLSX_DS],
+  },
   { slug: "uploads", label: "Uploads", admin: true },
   { slug: "config", label: "Config", admin: true },
 ]

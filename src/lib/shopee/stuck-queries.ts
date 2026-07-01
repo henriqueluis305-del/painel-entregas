@@ -1,6 +1,7 @@
 import "server-only"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { lookupCeps } from "@/lib/cep"
 import type { CheckpointPoint, StuckRow } from "@/lib/shopee/stuck"
 
 // Re-export para consumidores server que importam tudo de stuck-queries.
@@ -12,6 +13,7 @@ type EmbeddedRow = {
   status: string
   dias_preso: number | null
   agency: string | null
+  cep: string | null
   delivered_at: string | null
   last_status_at: string | null
   base: { slug: string; label: string; operacao_id: string } | null
@@ -44,7 +46,7 @@ export async function getStuckPackages(
   // limpeza diária: mostra só o backlog do dia mais recente (DB intacto)
   const day = opts.dailyReset ? await latestBacklogDate(sb, operacaoId) : null
   const SELECT =
-    "codigo, status, dias_preso, agency, delivered_at, last_status_at, base!inner(slug, label, operacao_id), driver(id, name)"
+    "codigo, status, dias_preso, agency, cep, delivered_at, last_status_at, base!inner(slug, label, operacao_id), driver(id, name)"
 
   // builder reutilizável (mesmos filtros p/ contagem e p/ as páginas)
   const build = (head: boolean) => {
@@ -77,6 +79,9 @@ export async function getStuckPackages(
     all.push(...((r.data ?? []) as unknown as EmbeddedRow[]))
   }
 
+  // Resolve cidade a partir do CEP (cache cep_cache + ViaCEP nos que faltam).
+  const cidadePorCep = await lookupCeps(all.map((r) => r.cep ?? ""))
+
   return all.map((r) => ({
     codigo: r.codigo,
     status: r.status,
@@ -88,6 +93,9 @@ export async function getStuckPackages(
     base_label: r.base?.label ?? "",
     driver_id: r.driver?.id ?? null,
     driver_name: r.driver?.name ?? null,
+    cep: r.cep ?? null,
+    cidade: (r.cep && cidadePorCep.get(r.cep)?.cidade) || null,
+    bairro: (r.cep && cidadePorCep.get(r.cep)?.bairro) || null,
   }))
 }
 

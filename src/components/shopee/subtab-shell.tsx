@@ -9,6 +9,7 @@ export async function ShopeeSubtabShell({
   actions,
   defaultPeriod,
   bases: basesProp,
+  filterExtra,
   children,
 }: {
   title: string
@@ -16,6 +17,8 @@ export async function ShopeeSubtabShell({
   actions?: React.ReactNode
   defaultPeriod?: string
   bases?: Array<{ slug: string; label: string }>
+  /** Controle extra renderizado ao lado da barra de filtros (ex.: seletor de semana). */
+  filterExtra?: React.ReactNode
   children?: React.ReactNode
 }) {
   const bases = basesProp ?? await (async () => {
@@ -33,7 +36,7 @@ export async function ShopeeSubtabShell({
         {actions}
       </div>
 
-      <ShopeeFilterBar bases={bases} defaultPeriod={defaultPeriod} />
+      <ShopeeFilterBar bases={bases} defaultPeriod={defaultPeriod} extra={filterExtra} />
 
       {children}
     </div>

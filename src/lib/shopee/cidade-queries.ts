@@ -1,5 +1,6 @@
 import "server-only"
 
+import { withPgClient } from "@/lib/pg"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 type SbClient = ReturnType<typeof createAdminClient>
@@ -57,25 +58,25 @@ async function latestDay(
   return ((data ?? []) as unknown as { data_pt_br: string }[])[0]?.data_pt_br ?? null
 }
 
-/** Visibilidade (base_id|cidade → show) das cidades das bases dadas. */
-async function visibility(
-  sb: SbClient,
-  baseIds: string[],
-  field: "show_sla" | "show_ds",
-): Promise<Map<string, boolean>> {
-  if (!baseIds.length) return new Map()
+/**
+ * Cidades habilitadas (`base_id|cidade`) das bases dadas. Opt-in: só entra a
+ * cidade com `enabled = true`; a ausência de linha (ou desligada) fica de fora.
+ * Um switch só, vale p/ SLA, DS e o "Fora de Abrangência" do Stuck.
+ */
+async function enabledCidades(sb: SbClient, baseIds: string[]): Promise<Set<string>> {
+  if (!baseIds.length) return new Set()
   const { data } = await sb
     .from("shopee_base_cidade")
-    .select(`base_id, cidade, ${field}`)
+    .select("base_id, cidade, enabled")
     .in("base_id", baseIds)
-  const map = new Map<string, boolean>()
-  for (const v of (data ?? []) as Record<string, unknown>[]) {
-    map.set(`${v.base_id}|${v.cidade}`, v[field] !== false)
+  const set = new Set<string>()
+  for (const v of (data ?? []) as { base_id: string; cidade: string; enabled: boolean }[]) {
+    if (v.enabled) set.add(`${v.base_id}|${v.cidade}`)
   }
-  return map
+  return set
 }
 
-/** SLA por cidade do dia mais recente, só as cidades visíveis (show_sla). */
+/** SLA por cidade do dia mais recente, só as cidades habilitadas no Config. */
 export async function getSlaCidades(
   operacaoId: string,
   baseSlugs: string[] = [],
@@ -96,12 +97,12 @@ export async function getSlaCidades(
   if (error) throw new Error(`getSlaCidades: ${error.message}`)
   const raw = (data ?? []) as unknown as SlaCidadeRaw[]
 
-  const vis = await visibility(sb, [...new Set(raw.map((r) => r.base_id))], "show_sla")
+  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, SlaCidadeRow>()
   for (const r of raw) {
     if (!r.cidade) continue // sem cidade não entra na tabela (conta só no total da base)
-    if (vis.get(`${r.base_id}|${r.cidade}`) === false) continue
+    if (!enabled.has(`${r.base_id}|${r.cidade}`)) continue // opt-in: só as cidades ligadas
     const cur =
       agg.get(r.cidade) ??
       { cidade: r.cidade, total: 0, entregues: 0, emRota: 0, insucessos: 0, outros: 0, pct: 0 }
@@ -131,7 +132,7 @@ type SlaOutrosRaw = {
 
 /**
  * Itens do balde "Outros" do SLA (do dia) agrupados por cidade, só cidades
- * visíveis (show_sla). Cada grupo traz a lista de códigos BR p/ copiar.
+ * habilitadas no Config. Cada grupo traz a lista de códigos BR p/ copiar.
  */
 export async function getSlaOutros(
   operacaoId: string,
@@ -160,13 +161,13 @@ export async function getSlaOutros(
     if (batch.length < PAGE) break
   }
 
-  const vis = await visibility(sb, [...new Set(raw.map((r) => r.base_id))], "show_sla")
+  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, SlaOutrosCidade>()
   for (const r of raw) {
     const cidade = r.cidade || ""
-    // cidade com toggle desligado no Config fica de fora; "sem cidade" sempre entra
-    if (cidade && vis.get(`${r.base_id}|${cidade}`) === false) continue
+    // cidade não habilitada no Config fica de fora; "sem cidade" sempre entra
+    if (cidade && !enabled.has(`${r.base_id}|${cidade}`)) continue
     const cur = agg.get(cidade) ?? { cidade, total: 0, itens: [] }
     cur.total += 1
     cur.itens.push({ codigo: r.codigo, status: r.status })
@@ -216,13 +217,13 @@ export async function getDsCidades(
     cidadeOf.set(`${m.base_id}|${m.driver_id}`, m.cidade)
   }
 
-  const vis = await visibility(sb, [...new Set(raw.map((r) => r.base_id))], "show_ds")
+  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, DsCidadeRow>()
   for (const r of raw) {
     const cidade = (r.driver_id && cidadeOf.get(`${r.base_id}|${r.driver_id}`)) || ""
     if (!cidade) continue // motorista sem cidade resolvida fica de fora da tabela
-    if (vis.get(`${r.base_id}|${cidade}`) === false) continue
+    if (!enabled.has(`${r.base_id}|${cidade}`)) continue // opt-in: só as cidades ligadas
     const cur =
       agg.get(cidade) ?? { cidade, total: 0, entregues: 0, emRota: 0, insucessos: 0, pct: 0 }
     cur.total += r.saiu
@@ -237,36 +238,48 @@ export async function getDsCidades(
   return { day, rows }
 }
 
-export type CidadeConfig = {
-  base_slug: string
-  base_label: string
-  cidades: { cidade: string; show_sla: boolean; show_ds: boolean }[]
+export type CidadeConfigItem = {
+  cidade: string
+  enabled: boolean
+  source: "sla" | "stuck" | "ambos" // onde a cidade aparece (dica visual)
 }
 
-/** Cidades descobertas por base + flags de visibilidade (p/ a aba Config). */
-export async function getCidadeConfig(operacaoId: string): Promise<CidadeConfig[]> {
-  const sb = createAdminClient()
-  const { data, error } = await sb
-    .from("shopee_base_cidade")
-    .select("cidade, show_sla, show_ds, base!inner(slug, label, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .order("cidade")
-  if (error) throw new Error(`getCidadeConfig: ${error.message}`)
-
-  type Row = {
-    cidade: string
-    show_sla: boolean
-    show_ds: boolean
-    base: { slug: string; label: string; operacao_id: string } | null
-  }
-  const byBase = new Map<string, CidadeConfig>()
-  for (const r of (data ?? []) as unknown as Row[]) {
-    const slug = r.base?.slug ?? ""
-    const entry =
-      byBase.get(slug) ??
-      { base_slug: slug, base_label: r.base?.label ?? slug, cidades: [] }
-    entry.cidades.push({ cidade: r.cidade, show_sla: r.show_sla, show_ds: r.show_ds })
-    byBase.set(slug, entry)
-  }
-  return [...byBase.values()].sort((a, b) => a.base_label.localeCompare(b.base_label, "pt-BR"))
+/**
+ * Cidades de UMA base p/ o Config: união do que aparece no rastreio de SLA
+ * (linhas já persistidas em shopee_base_cidade + estado do switch) com o que
+ * aparece no rastreio de Stuck (cidade resolvida do CEP dos pacotes, via
+ * cep_cache). Cidade que só existe no Stuck ainda não tem linha → entra
+ * desligada (default). Ordenada por cidade (pt-BR).
+ */
+export async function getCidadeConfigBase(
+  operacaoId: string,
+  baseSlug: string,
+): Promise<CidadeConfigItem[]> {
+  return withPgClient(async (c) => {
+    const persisted = await c.query(
+      `select sc.cidade, sc.enabled
+         from shopee_base_cidade sc
+         join base b on b.id = sc.base_id
+        where b.operacao_id = $1 and b.slug = $2`,
+      [operacaoId, baseSlug],
+    )
+    const stuck = await c.query(
+      `select distinct cc.cidade
+         from shopee_package p
+         join base b on b.id = p.base_id
+         join cep_cache cc on cc.cep = regexp_replace(p.cep, '\\D', '', 'g')
+        where b.operacao_id = $1 and b.slug = $2 and coalesce(cc.cidade, '') <> ''`,
+      [operacaoId, baseSlug],
+    )
+    const map = new Map<string, CidadeConfigItem>()
+    for (const r of persisted.rows as { cidade: string; enabled: boolean }[]) {
+      if (r.cidade) map.set(r.cidade, { cidade: r.cidade, enabled: r.enabled, source: "sla" })
+    }
+    for (const r of stuck.rows as { cidade: string }[]) {
+      const cur = map.get(r.cidade)
+      if (cur) cur.source = "ambos"
+      else map.set(r.cidade, { cidade: r.cidade, enabled: false, source: "stuck" })
+    }
+    return [...map.values()].sort((a, b) => a.cidade.localeCompare(b.cidade, "pt-BR"))
+  })
 }

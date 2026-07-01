@@ -2,6 +2,7 @@ import "server-only"
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { lookupCeps } from "@/lib/cep"
+import { FORA_DE_ABRANGENCIA } from "@/lib/shopee/stuck"
 import type { CheckpointPoint, StuckRow } from "@/lib/shopee/stuck"
 
 // Re-export para consumidores server que importam tudo de stuck-queries.
@@ -34,6 +35,40 @@ async function latestBacklogDate(
     .limit(1)
   const row = (data ?? [])[0] as { last_backlog_date: string } | undefined
   return row?.last_backlog_date ?? null
+}
+
+/**
+ * Cidades habilitadas por base no Config (`enabled`), reaproveitadas no Stuck —
+ * um switch só, vale p/ SLA, DS e o "Fora de Abrangência". Devolve o conjunto
+ * `${base_slug}|${cidade}` das cidades ligadas. Opt-in estrito: cidade que não
+ * está aqui (base sem nada ligado, inclusive) é tratada como fora de abrangência.
+ */
+async function cidadesHabilitadas(
+  sb: ReturnType<typeof createAdminClient>,
+  operacaoId: string,
+  baseSlugs: string[],
+): Promise<Set<string>> {
+  const set = new Set<string>()
+  const PAGE = 1000
+  type Row = { cidade: string; enabled: boolean; base: { slug: string } | null }
+  for (let from = 0; ; from += PAGE) {
+    let q = sb
+      .from("shopee_base_cidade")
+      .select("cidade, enabled, base!inner(slug, operacao_id)")
+      .eq("base.operacao_id", operacaoId)
+      .order("id") // ordem única (PK) p/ paginação sem pulos
+      .range(from, from + PAGE - 1)
+    if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
+    const { data, error } = await q
+    if (error) throw new Error(`cidadesHabilitadas: ${error.message}`)
+    const batch = (data ?? []) as unknown as Row[]
+    for (const r of batch) {
+      const slug = r.base?.slug ?? ""
+      if (slug && r.enabled && r.cidade) set.add(`${slug}|${r.cidade}`)
+    }
+    if (batch.length < PAGE) break
+  }
+  return set
 }
 
 /** Pacotes stuck da operação, opcionalmente filtrados por bases e pelo dia. */
@@ -81,22 +116,33 @@ export async function getStuckPackages(
 
   // Resolve cidade a partir do CEP (cache cep_cache + ViaCEP nos que faltam).
   const cidadePorCep = await lookupCeps(all.map((r) => r.cep ?? ""))
+  // Cidades habilitadas no Config p/ separar "da base" x "fora de abrangência".
+  const habilitadas = await cidadesHabilitadas(sb, operacaoId, baseSlugs)
 
-  return all.map((r) => ({
-    codigo: r.codigo,
-    status: r.status,
-    dias_preso: r.dias_preso,
-    agency: r.agency,
-    delivered_at: r.delivered_at,
-    last_status_at: r.last_status_at,
-    base_slug: r.base?.slug ?? "",
-    base_label: r.base?.label ?? "",
-    driver_id: r.driver?.id ?? null,
-    driver_name: r.driver?.name ?? null,
-    cep: r.cep ?? null,
-    cidade: (r.cep && cidadePorCep.get(r.cep)?.cidade) || null,
-    bairro: (r.cep && cidadePorCep.get(r.cep)?.bairro) || null,
-  }))
+  return all.map((r) => {
+    const slug = r.base?.slug ?? ""
+    const cepCidade = (r.cep && cidadePorCep.get(r.cep)?.cidade) || null
+    const cepBairro = (r.cep && cidadePorCep.get(r.cep)?.bairro) || null
+    // Só a cidade habilitada no Config mantém nome próprio (e bairro). Todo o
+    // resto — cidade fora da base OU sem CEP/cidade resolvida — cai em "Fora de
+    // Abrangência" (cidade e bairro), pra não acumular nomes de fora nas visões.
+    const daBase = cepCidade != null && habilitadas.has(`${slug}|${cepCidade}`)
+    return {
+      codigo: r.codigo,
+      status: r.status,
+      dias_preso: r.dias_preso,
+      agency: r.agency,
+      delivered_at: r.delivered_at,
+      last_status_at: r.last_status_at,
+      base_slug: slug,
+      base_label: r.base?.label ?? "",
+      driver_id: r.driver?.id ?? null,
+      driver_name: r.driver?.name ?? null,
+      cep: r.cep ?? null,
+      cidade: daBase ? cepCidade : FORA_DE_ABRANGENCIA,
+      bairro: daBase ? cepBairro : FORA_DE_ABRANGENCIA,
+    }
+  })
 }
 
 type EmbeddedCheckpoint = {

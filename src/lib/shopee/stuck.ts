@@ -3,6 +3,15 @@
 export const DELIVERED_STATUS = "Delivered"
 
 /**
+ * Rótulo único p/ cidade/bairro de pacote que não é de cidade habilitada da
+ * base no Config (cidades por base — um switch só, opt-in): cidade resolvida do
+ * CEP mas não ligada, OU sem CEP/cidade resolvida. Agrupa tudo num só nome,
+ * evitando acúmulo de nomes de fora nas visões do Stuck. Aplicado uma vez, na
+ * camada de dados (getStuckPackages), então vale p/ pivô, detalhe e comparação.
+ */
+export const FORA_DE_ABRANGENCIA = "Fora de Abrangência"
+
+/**
  * Status que contam como "resolvido" — o pacote saiu do stuck (decisão 2026-06-29).
  * Inclui Delivered e os estágios de coleta/saída para rota. Um pacote importado
  * no backlog já em qualquer um destes nunca entra como stuck.

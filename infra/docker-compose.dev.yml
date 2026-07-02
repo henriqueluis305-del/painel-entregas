@@ -1,0 +1,57 @@
+# Clone local da AWS pra desenvolvimento (espelho do que roda em produção):
+#   db      → Postgres 17      (= RDS)
+#   minio   → MinIO            (= S3, mesma API/SDK)
+#   cognito → cognito-local    (= Cognito User Pool)
+#
+# Subir:    docker compose -f infra/docker-compose.dev.yml up -d
+# Migrar:   npm run migrate            (com .env.local apontando pro db local)
+# Seed:     npm run seed:auth          (user pool + admin de teste no cognito-local)
+# Zerar:    docker compose -f infra/docker-compose.dev.yml down -v
+#
+# Os apps Next rodam FORA do compose (npm run dev) com hot reload; só a infra
+# fica em container. O worker pode rodar via `npm run worker` ou em container.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: painel
+    ports: ["5432:5432"]
+    volumes: ["db_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d painel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: dev
+      MINIO_ROOT_PASSWORD: devsecret
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # console web (ver/baixar planilhas)
+    volumes: ["minio_data:/data"]
+
+  createbucket:
+    # one-shot: cria o bucket privado no boot e sai
+    image: minio/mc
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 dev devsecret; do sleep 1; done;
+      mc mb -p local/painel-arquivos;
+      mc anonymous set none local/painel-arquivos;
+      exit 0;"
+
+  cognito:
+    image: jagregory/cognito-local
+    ports: ["9229:9229"]
+    volumes: ["cognito_data:/app/.cognito-local"]
+
+volumes:
+  db_data: {}
+  minio_data: {}
+  cognito_data: {}

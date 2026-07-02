@@ -6,6 +6,7 @@
 import type { AuthProvider } from "./types"
 import { supabaseProvider } from "./supabase"
 import { mockProvider } from "./mock"
+import { cognitoProvider } from "./cognito"
 
 export type { AuthProvider, AuthUser, Profile, SignInResult, CreateUserResult } from "./types"
 export * from "./permissions"
@@ -22,7 +23,7 @@ export function authProvider(): AuthProvider {
       return mockProvider
     case "cognito":
     case "cognito-local": // mesmo provider; muda só o endpoint (COGNITO_ENDPOINT)
-      throw new Error("Provider Cognito ainda não implementado (Fase 1 do plano AWS).")
+      return cognitoProvider
     default:
       return supabaseProvider
   }

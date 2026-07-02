@@ -49,9 +49,11 @@ async function supabaseMiddleware(request: NextRequest) {
   return supabaseResponse
 }
 
-/** Cognito: valida o JWT do cookie de sessão (implementado na Fase 1 do plano AWS). */
-async function cognitoMiddleware(_request: NextRequest): Promise<NextResponse> {
-  throw new Error("Provider Cognito ainda não implementado (Fase 1 do plano AWS).")
+/** Cognito: valida o JWT do cookie e renova via refresh token quando expira. */
+async function cognitoMiddleware(request: NextRequest): Promise<NextResponse> {
+  // import dinâmico: aws-jwt-verify/SDK só carregam quando AUTH_MODE=cognito*
+  const { cognitoAuthenticate } = await import("./cognito")
+  return cognitoAuthenticate(request)
 }
 
 /** Mock: usuário sempre presente; só tira o /login da frente. */

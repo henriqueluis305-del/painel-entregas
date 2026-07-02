@@ -52,15 +52,12 @@ function verifier() {
   if (local) {
     // cognito-local emite iss com o host de bind interno (0.0.0.0) — aceita ambos
     const u = new URL(local)
-    const issuers = [
-      `${local}/${poolId()}`,
-      `${u.protocol}//0.0.0.0:${u.port}/${poolId()}`,
-    ]
-    g.__cognitoVerifier = JwtVerifier.create({
-      issuer: issuers,
-      audience: clientId(),
-      jwksUri: `${local}/${poolId()}/.well-known/jwks.json`,
-    }) as unknown as { verify(token: string): Promise<Record<string, unknown>> }
+    const jwksUri = `${local}/${poolId()}/.well-known/jwks.json`
+    g.__cognitoVerifier = JwtVerifier.create(
+      [`${local}/${poolId()}`, `${u.protocol}//0.0.0.0:${u.port}/${poolId()}`].map(
+        (issuer) => ({ issuer, audience: clientId(), jwksUri }),
+      ),
+    ) as unknown as { verify(token: string): Promise<Record<string, unknown>> }
   } else {
     g.__cognitoVerifier = CognitoJwtVerifier.create({
       userPoolId: poolId(),
@@ -80,7 +77,7 @@ async function ensureLocalJwks(v: ReturnType<typeof verifier>) {
   const local = localEndpoint()
   if (!local || localJwksLoaded) return
   const res = await fetch(`${local}/${poolId()}/.well-known/jwks.json`)
-  ;(v as { cacheJwks(jwks: unknown): void }).cacheJwks(await res.json())
+  ;(v as unknown as { cacheJwks(jwks: unknown): void }).cacheJwks(await res.json())
   localJwksLoaded = true
 }
 

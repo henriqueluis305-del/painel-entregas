@@ -1,0 +1,59 @@
+# Deploy AWS: build das imagens → push ECR → SSM Run Command na EC2
+# (fetch-env + migrate + compose up). Disparo manual ou tag v*.
+#
+# Secrets necessários no repo (Settings → Secrets → Actions):
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  (user de CI com ECR push + SSM send)
+#   AWS_REGION                                  (ex.: us-east-1)
+#   EC2_INSTANCE_ID                             (i-xxxx da instância do app)
+name: deploy
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+concurrency: deploy-production
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Definir tag
+        id: tag
+        run: echo "tag=${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build e push (web)
+        run: |
+          IMG=${{ steps.ecr.outputs.registry }}/painel-monitoramento
+          docker build -t "$IMG:${{ steps.tag.outputs.tag }}" -t "$IMG:latest" .
+          docker push --all-tags "$IMG"
+
+      - name: Build e push (worker)
+        run: |
+          IMG=${{ steps.ecr.outputs.registry }}/painel-worker
+          docker build -f apps/worker/Dockerfile -t "$IMG:${{ steps.tag.outputs.tag }}" -t "$IMG:latest" .
+          docker push --all-tags "$IMG"
+
+      - name: Deploy na EC2 via SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${{ steps.tag.outputs.tag }}" \
+            --parameters commands='[
+              "cd /opt/painel/infra",
+              "./scripts/fetch-env.sh",
+              "./scripts/deploy.sh ${{ steps.tag.outputs.tag }}"
+            ]' \
+            --output text

@@ -1,0 +1,26 @@
+# CI: typecheck + lint + build em todo push/PR.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, feat/aws-migration]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+        env:
+          # valores dummy só pro build passar (nada real em CI)
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci

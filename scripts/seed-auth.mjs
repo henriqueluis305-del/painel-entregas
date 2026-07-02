@@ -25,7 +25,7 @@ const ENDPOINT = process.env.COGNITO_ENDPOINT ?? "http://localhost:9229"
 const POOL_NAME = "painel-dev"
 const EMAIL = process.env.ADMIN_EMAIL ?? "admin@dev.local"
 const PASSWORD = process.env.ADMIN_PASSWORD ?? "admin12345"
-const DB_URL = process.env.DEV_DATABASE_URL ?? "postgresql://postgres:dev@localhost:5432/painel"
+const DB_URL = process.env.DEV_DATABASE_URL ?? "postgresql://postgres:dev@localhost:5433/painel"
 
 const cognito = new CognitoIdentityProviderClient({
   region: "us-east-1",

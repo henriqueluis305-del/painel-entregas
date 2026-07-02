@@ -49,25 +49,46 @@ function client(): CognitoIdentityProviderClient {
 function verifier() {
   if (g.__cognitoVerifier) return g.__cognitoVerifier
   const local = localEndpoint()
-  g.__cognitoVerifier = local
-    ? JwtVerifier.create({
-        issuer: `${local}/${poolId()}`,
-        audience: clientId(),
-        jwksUri: `${local}/${poolId()}/.well-known/jwks.json`,
-      })
-    : CognitoJwtVerifier.create({
-        userPoolId: poolId(),
-        clientId: clientId(),
-        tokenUse: "id",
-      })
+  if (local) {
+    // cognito-local emite iss com o host de bind interno (0.0.0.0) — aceita ambos
+    const u = new URL(local)
+    const issuers = [
+      `${local}/${poolId()}`,
+      `${u.protocol}//0.0.0.0:${u.port}/${poolId()}`,
+    ]
+    g.__cognitoVerifier = JwtVerifier.create({
+      issuer: issuers,
+      audience: clientId(),
+      jwksUri: `${local}/${poolId()}/.well-known/jwks.json`,
+    }) as unknown as { verify(token: string): Promise<Record<string, unknown>> }
+  } else {
+    g.__cognitoVerifier = CognitoJwtVerifier.create({
+      userPoolId: poolId(),
+      clientId: clientId(),
+      tokenUse: "id",
+    })
+  }
   return g.__cognitoVerifier
 }
 
 type IdClaims = { sub: string; email?: string }
 
+// O fetcher interno do aws-jwt-verify só aceita https; o cognito-local é http.
+// No modo local, buscamos o JWKS uma vez via fetch e pré-carregamos no verifier.
+let localJwksLoaded = false
+async function ensureLocalJwks(v: ReturnType<typeof verifier>) {
+  const local = localEndpoint()
+  if (!local || localJwksLoaded) return
+  const res = await fetch(`${local}/${poolId()}/.well-known/jwks.json`)
+  ;(v as { cacheJwks(jwks: unknown): void }).cacheJwks(await res.json())
+  localJwksLoaded = true
+}
+
 async function verifyIdToken(token: string): Promise<IdClaims | null> {
   try {
-    const payload = (await verifier().verify(token)) as IdClaims
+    const v = verifier()
+    await ensureLocalJwks(v)
+    const payload = (await v.verify(token)) as IdClaims
     return payload?.sub ? payload : null
   } catch {
     return null

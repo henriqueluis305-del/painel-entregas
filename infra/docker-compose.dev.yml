@@ -16,7 +16,8 @@ services:
     environment:
       POSTGRES_PASSWORD: dev
       POSTGRES_DB: painel
-    ports: ["5432:5432"]
+    # 5433 no host: evita conflito com Postgres nativo instalado na máquina
+    ports: ["5433:5432"]
     volumes: ["db_data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d painel"]

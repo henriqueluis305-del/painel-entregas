@@ -4,6 +4,7 @@ import ExcelJS from "exceljs"
 import type { PoolClient } from "pg"
 import { revalidatePath } from "next/cache"
 
+import { putObject, uploadKey } from "@painel/storage"
 import { getSessionProfile } from "@/lib/auth"
 import { lookupCeps, normalizeCep } from "@/lib/cep"
 import { hasPerm, PERMS, type Permission } from "@/lib/permissions"
@@ -44,11 +45,33 @@ async function logUpload(
   filenames: string,
   rows: number,
   summary: string,
+  s3Keys: string[] | null = null,
 ) {
   await c.query(
-    `insert into shopee_upload_log (user_email, kind, filenames, rows, summary) values ($1,$2,$3,$4,$5)`,
-    [email, kind, filenames, rows, summary],
+    `insert into shopee_upload_log (user_email, kind, filenames, rows, summary, s3_keys) values ($1,$2,$3,$4,$5,$6)`,
+    [email, kind, filenames, rows, summary, s3Keys],
   )
+}
+
+/**
+ * Arquiva os originais no bucket (S3/MinIO) p/ auditoria e reprocessamento
+ * (RF-09 do plano AWS). Best-effort: sem S3_BUCKET configurado (ex.: Vercel
+ * hoje) ou com falha de rede, o upload segue normalmente sem arquivar.
+ */
+async function archiveOriginals(kind: string, files: File[]): Promise<string[] | null> {
+  if (!process.env.S3_BUCKET) return null
+  try {
+    const keys: string[] = []
+    for (const f of files) {
+      const key = uploadKey(kind, f.name)
+      await putObject(key, Buffer.from(await f.arrayBuffer()), f.type || "application/octet-stream")
+      keys.push(key)
+    }
+    return keys
+  } catch (err) {
+    console.error("archiveOriginals: falha ao arquivar no bucket (seguindo sem arquivar)", err)
+    return null
+  }
 }
 
 const todayBr = () =>
@@ -391,6 +414,8 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
   const files = getFiles(fd)
   if (!files.length) return { ok: false, message: "Nenhum arquivo." }
   const filenames = files.map((f) => f.name).join(", ")
+  // original vai pro bucket antes do processamento (auditoria/reprocessamento)
+  const s3Keys = await archiveOriginals(kind, files)
 
   try {
     if (kind === "backlog") {
@@ -440,7 +465,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
         const baseIds = [...new Set(valid.map((r) => bmap.get(r.baseSlug)!))]
         await recordStuckCheckpoint(c, baseIds, "Backlog", todayBr())
         const m = `Backlog aplicado: ${valid.length} pacotes em ${baseIds.length} base(s).`
-        await logUpload(c, email, "backlog", filenames, valid.length, m)
+        await logUpload(c, email, "backlog", filenames, valid.length, m, s3Keys)
         return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/stuck`)
@@ -483,7 +508,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
           await recordStuckCheckpoint(c, [...bases], `Tracking ${fileTime(files)}`, todayBr())
         }
         const m = `Tracking aplicado: ${ids.length} pacotes atualizados.`
-        await logUpload(c, email, "tracking", filenames, ids.length, m)
+        await logUpload(c, email, "tracking", filenames, ids.length, m, s3Keys)
         return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/stuck`)
@@ -523,7 +548,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
           )
         }
         const m = `DS aplicado: ${valid.length} motoristas em ${baseIds.length} base(s).`
-        await logUpload(c, email, "ds", filenames, valid.length, m)
+        await logUpload(c, email, "ds", filenames, valid.length, m, s3Keys)
         return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/ds`)
@@ -653,7 +678,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
           )
         }
 
-        await logUpload(c, email, "sla", filenames, b.total, m)
+        await logUpload(c, email, "sla", filenames, b.total, m, s3Keys)
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/sla`)
       revalidatePath(`${SHOPEE_BASE_PATH}/geral`)
@@ -706,7 +731,7 @@ export async function applyUpload(fd: FormData): Promise<ApplyResult> {
         const baseIds = [...new Set(valid.map((r) => bmap.get(r.baseSlug)!))]
         const valor = valid.reduce((sum, row) => sum + (row.valor ?? 0), 0)
         const m = `PNR aplicado: ${valid.length} PNRs em ${baseIds.length} base(s), ${brl(valor)}.`
-        await logUpload(c, email, "pnr", filenames, valid.length, m)
+        await logUpload(c, email, "pnr", filenames, valid.length, m, s3Keys)
         return m
       })
       revalidatePath(`${SHOPEE_BASE_PATH}/pnr`)

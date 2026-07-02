@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate": "node scripts/migrate.mjs",
+    "migrate:status": "node scripts/migrate.mjs --status",
+    "migrate:baseline": "node scripts/migrate.mjs --baseline"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

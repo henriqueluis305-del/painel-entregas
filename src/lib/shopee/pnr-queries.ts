@@ -353,11 +353,11 @@ export async function getPnrWeeklyFrom(
     const row = (
       await c.query(
         `select to_char(
-                  max(date_trunc('week', created_time at time zone '${TZ}')::date) - interval '3 weeks',
+                  max(date_trunc('week', created_date_br)::date) - interval '3 weeks',
                   'YYYY-MM-DD'
                 ) as from_date
          from shopee_pnr
-         where created_time is not null ${baseFilter} ${kindClause(kind, "base_id")}`,
+         where created_date_br is not null ${baseFilter} ${kindClause(kind, "base_id")}`,
         hasBase ? [slugs] : [],
       )
     ).rows[0] as { from_date: string | null }
@@ -383,17 +383,17 @@ export async function getPnrWeeklyData(
 
     // 4 semanas mais recentes nos dados (semana máxima − 3 semanas anteriores)
     const weekFilter = `
-      and date_trunc('week', p.created_time at time zone '${TZ}')::date >= (
-        select max(date_trunc('week', created_time at time zone '${TZ}')::date) - interval '3 weeks'
+      and date_trunc('week', p.created_date_br)::date >= (
+        select max(date_trunc('week', created_date_br)::date) - interval '3 weeks'
         from shopee_pnr
-        where created_time is not null ${baseFilter.replace(/\bp\./g, "")} ${kindSub}
+        where created_date_br is not null ${baseFilter.replace(/\bp\./g, "")} ${kindSub}
       )`
 
     const raw = (
       await c.query(
         `select b.slug                                                           as base_slug,
                 b.label                                                          as base_label,
-                date_trunc('week', p.created_time at time zone '${TZ}')::date   as week_start,
+                date_trunc('week', p.created_date_br)::date                     as week_start,
                 count(*)::int                                                    as total,
                 count(*) filter (where p.status = $1)::int                      as revertidas,
                 count(*) filter (where p.status = $2)::int                      as faturadas

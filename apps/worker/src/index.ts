@@ -34,6 +34,68 @@ const handlers: Record<string, Handler> = {
   archive: async (file) => `arquivado (${file.length} bytes)`,
 }
 
+// ── Manutenção diária (retenção — docs/DB-OTIMIZACAO.md §6) ─────────────────
+// Roda no primeiro ciclo do dia; controlada por uma linha em processing_jobs
+// (kind='maintenance') pra não repetir com múltiplas réplicas do worker.
+const RETENTION = {
+  packageEventDays: Number(process.env.RETENTION_PACKAGE_EVENT_DAYS ?? 90),
+  slaOutrosDays: Number(process.env.RETENTION_SLA_OUTROS_DAYS ?? 60),
+  jobsDoneDays: Number(process.env.RETENTION_JOBS_DONE_DAYS ?? 30),
+}
+
+async function runMaintenance() {
+  // claim atômico do "job do dia" — só uma réplica executa
+  const { rows } = await pool.query(
+    `insert into processing_jobs (kind, s3_key, status, started_at)
+     select 'maintenance', 'maintenance/' || current_date, 'processing', now()
+      where not exists (
+        select 1 from processing_jobs
+         where kind = 'maintenance' and s3_key = 'maintenance/' || current_date
+      )
+     returning id`,
+  )
+  const jobId = rows[0]?.id
+  if (!jobId) return // já rodou hoje (esta ou outra réplica)
+
+  try {
+    const ev = await pool.query(
+      `delete from shopee_package_event where observed_at < now() - make_interval(days => $1)`,
+      [RETENTION.packageEventDays],
+    )
+    const ou = await pool.query(
+      `delete from shopee_sla_outros_item where data < current_date - $1::int`,
+      [RETENTION.slaOutrosDays],
+    )
+    const jb = await pool.query(
+      `delete from processing_jobs
+        where kind <> 'maintenance' and status = 'done'
+          and finished_at < now() - make_interval(days => $1)`,
+      [RETENTION.jobsDoneDays],
+    )
+    const summary = `retenção: ${ev.rowCount} events, ${ou.rowCount} sla_outros, ${jb.rowCount} jobs`
+    await pool.query(
+      `update processing_jobs set status='done', error_message=$2, finished_at=now() where id=$1`,
+      [jobId, summary],
+    )
+    console.log(`[worker] manutenção diária ok — ${summary}`)
+  } catch (err) {
+    await pool.query(
+      `update processing_jobs set status='failed', error_message=$2, finished_at=now() where id=$1`,
+      [jobId, err instanceof Error ? err.message : String(err)],
+    )
+    console.error("[worker] manutenção diária FALHOU:", err)
+  }
+}
+
+let lastMaintenanceDay = ""
+
+async function maybeRunMaintenance() {
+  const today = new Date().toISOString().slice(0, 10)
+  if (today === lastMaintenanceDay) return
+  lastMaintenanceDay = today
+  await runMaintenance()
+}
+
 // ── Loop ─────────────────────────────────────────────────────────────────────
 
 async function claimJob(): Promise<Job | null> {
@@ -101,6 +163,7 @@ async function main() {
   console.log(`[worker] iniciado — poll ${POLL_MS}ms, timeout ${JOB_TIMEOUT_MS}ms`)
   while (running) {
     try {
+      await maybeRunMaintenance()
       const job = await claimJob()
       if (!job) {
         await new Promise((r) => setTimeout(r, POLL_MS))

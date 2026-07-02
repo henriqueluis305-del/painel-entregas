@@ -49,7 +49,7 @@ async function latestDay(
        from ${table} t
        join base b on b.id = t.base_id
       where b.operacao_id::text = $1 ${baseFilter}
-      order by t.updated_at desc
+      order by t.data desc
       limit 1`,
     params,
   )
@@ -246,7 +246,7 @@ export async function getCidadeConfigBase(
       `select distinct cc.cidade
          from shopee_package p
          join base b on b.id = p.base_id
-         join cep_cache cc on cc.cep = regexp_replace(p.cep, '\\D', '', 'g')
+         join cep_cache cc on cc.cep = p.cep
         where b.operacao_id = $1 and b.slug = $2 and coalesce(cc.cidade, '') <> ''`,
       [operacaoId, baseSlug],
     )

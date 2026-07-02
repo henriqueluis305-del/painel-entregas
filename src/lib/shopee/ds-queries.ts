@@ -42,7 +42,7 @@ export async function getDsCheckpoints(
        from shopee_ds_checkpoint c
        join base b on b.id = c.base_id
       where b.operacao_id::text = $1
-      order by c.ts desc
+      order by c.data desc, c.ts desc
       limit 1`,
     [operacaoId],
   )
@@ -87,7 +87,7 @@ export async function getDsData(
        from shopee_ds_driver d
        join base b on b.id = d.base_id
       where b.operacao_id::text = $1
-      order by d.updated_at desc
+      order by d.data desc
       limit 1`,
     [operacaoId],
   )

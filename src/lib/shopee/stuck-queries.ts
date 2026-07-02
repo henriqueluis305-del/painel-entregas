@@ -145,7 +145,7 @@ export async function getStuckCheckpoints(
        from shopee_stuck_checkpoint c
        join base b on b.id = c.base_id
       where b.operacao_id::text = $1
-      order by c.ts desc
+      order by c.data desc, c.ts desc
       limit 1`,
     [operacaoId],
   )

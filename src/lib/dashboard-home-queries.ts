@@ -195,7 +195,7 @@ export async function getHomeMetricSeries(
     // dia do PNR resolvido no SQL (America/Sao_Paulo)
     query<PnrRow>(
       `select b.operacao_id::text as operacao_id, p.base_id, p.valor::float8 as valor,
-              to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') as data_pt_br
+              to_char(p.created_date_br, 'DD/MM/YYYY') as data_pt_br
          from shopee_pnr p
          join base b on b.id = p.base_id
         where p.created_time is not null and b.operacao_id::text = any($1::text[])`,
@@ -324,7 +324,7 @@ export async function getHomeDriverRanking(
          from shopee_pnr p
          join base b on b.id = p.base_id
         where p.driver_id is not null
-          and to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') = $1
+          and p.created_date_br = to_date($1, 'DD/MM/YYYY')
           and b.operacao_id::text = any($2::text[])`,
       [day, operationIds],
     ),

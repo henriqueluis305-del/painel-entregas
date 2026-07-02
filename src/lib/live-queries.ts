@@ -27,11 +27,6 @@ export async function getAllowedOperacoes(
   return { operacoes: allowed, defaultId }
 }
 
-function parseBrDate(s: string): number {
-  const [d, m, y] = s.split("/").map(Number)
-  return new Date(y, (m ?? 1) - 1, d ?? 1).getTime()
-}
-
 export type BaseLite = { slug: string; label: string }
 
 /** Bases ativas da operação (os "datasets"). */
@@ -46,19 +41,21 @@ export async function getOpBases(operacaoId: string): Promise<BaseLite[]> {
 export async function getAvailableDays(operacaoId: string, baseSlug = ""): Promise<string[]> {
   const baseFilter = baseSlug ? "and b.slug = $2" : ""
   const params = baseSlug ? [operacaoId, baseSlug] : [operacaoId]
+  // ordena pela coluna DATE gerada — cronológico direto no SQL, sem parse no app
   const rows = await query<{ data_pt_br: string }>(
-    `select distinct t.data_pt_br from (
-       select d.data_pt_br from shopee_ds_driver d
+    `select t.data_pt_br from (
+       select distinct d.data_pt_br, d.data from shopee_ds_driver d
          join base b on b.id = d.base_id
         where b.operacao_id::text = $1 ${baseFilter}
-       union all
-       select s.data_pt_br from shopee_sla_record s
+       union
+       select distinct s.data_pt_br, s.data from shopee_sla_record s
          join base b on b.id = s.base_id
         where b.operacao_id::text = $1 ${baseFilter}
-     ) t`,
+     ) t
+     order by t.data desc`,
     params,
   )
-  return rows.map((r) => r.data_pt_br).sort((a, b) => parseBrDate(b) - parseBrDate(a))
+  return rows.map((r) => r.data_pt_br)
 }
 
 export type SlaDay = {
@@ -167,7 +164,7 @@ async function fetchPnrByDriver(operacaoId: string, dia: string, baseSlug = "") 
        join base b on b.id = p.base_id
        where p.driver_id is not null
          and b.operacao_id::text = $1
-         and to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') = $2
+         and p.created_date_br = to_date($2, 'DD/MM/YYYY')
          ${baseFilter}
        group by p.driver_id`,
       params,

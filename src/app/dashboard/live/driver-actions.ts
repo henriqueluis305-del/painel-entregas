@@ -81,15 +81,14 @@ async function fetchDriverPnrByDay({
     if (baseSlugs.length) params.push(baseSlugs)
 
     const rows = await c.query(
-      `select to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') as data_pt_br,
+      `select to_char(p.created_date_br, 'DD/MM/YYYY') as data_pt_br,
               coalesce(sum(p.valor),0)::float8 as valor
        from shopee_pnr p
        join base b on b.id = p.base_id
        where p.driver_id = $1
          and b.operacao_id::text = any($2::text[])
          and p.created_time is not null
-         and (p.created_time at time zone 'America/Sao_Paulo')::date
-             between to_date($3, 'DD/MM/YYYY') and to_date($4, 'DD/MM/YYYY')
+         and p.created_date_br between to_date($3, 'DD/MM/YYYY') and to_date($4, 'DD/MM/YYYY')
          ${baseFilter}
        group by data_pt_br`,
       params,

@@ -141,6 +141,6 @@ delete from processing_jobs where status='done' and finished_at < now() - interv
 | `data date` gerada + índices cronológicos | `0004` | ✅ aplicada (prod + local) |
 | Normalização preventiva das legadas (timestamptz, jsonb, CHECKs, uniques, numeric) | `0005` | ✅ aplicada (prod + local) |
 | Decidir donos das entidades duplicadas (§1.3) antes de reativar legadas | design | ⏸ decisão de produto |
-| Código: ordenar/filtrar por `data`, `max(data)` no latestDay, join cep direto | src/lib | ⏸ follow-up incremental |
+| Código: "dia mais recente" por `data desc` (6 queries), PNR por `created_date_br` (7 pontos), dias ordenados no SQL, join cep direto | src/lib | ✅ feito |
 | `shopee_upload_log`: referenciar `upload.id` (fim do filenames-com-vírgula / user_email sem FK) | código + migration | ⏸ junto da reativação de `upload` |
-| Retenção via tick diário no worker | apps/worker | ⏸ follow-up |
+| Retenção via tick diário no worker (claim atômico via processing_jobs kind=maintenance) | apps/worker | ✅ feito |

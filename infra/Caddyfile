@@ -1,0 +1,18 @@
+# TLS automático (Let's Encrypt) + proxy pros containers.
+# Trocar os domínios pelos reais quando o DNS (Route 53) estiver apontado.
+# App interno: Caddy direto na EC2, sem CloudFront — elimina o risco de cache
+# de conteúdo dinâmico (ver §7.3 do plano). CloudFront só se precisar de CDN/WAF.
+
+app-monitoramento.SEUDOMINIO.com.br {
+	reverse_proxy monitoramento-web:3000
+	encode gzip zstd
+
+	# assets com hash no nome podem cachear forte no browser
+	@static path /_next/static/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+}
+
+# app-financeiro.SEUDOMINIO.com.br {
+# 	reverse_proxy financeiro-web:3000
+# 	encode gzip zstd
+# }

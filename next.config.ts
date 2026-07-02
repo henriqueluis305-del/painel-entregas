@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Build standalone p/ imagem Docker enxuta (deploy AWS/EC2); inócuo na Vercel.
+  output: "standalone",
   // Esconde o indicador de dev do Next (o botãozinho "N")
   devIndicators: false,
   // Permite que outros dispositivos na mesma rede acessem o dev server via IP

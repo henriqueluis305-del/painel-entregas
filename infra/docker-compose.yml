@@ -1,0 +1,39 @@
+# Produção na EC2 (Fase 1 do plano AWS): Caddy na frente, apps como processos
+# Node em containers, worker separado. RDS/S3/Cognito são serviços AWS — nada
+# de banco/arquivo no disco da EC2 (AD-08: instância stateless).
+#
+# Deploy: infra/scripts/deploy.sh (pull das imagens + migrate + up -d)
+services:
+  reverse-proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # certificados Let's Encrypt (evita re-emissão)
+      - caddy_config:/config
+
+  monitoramento-web:
+    image: ${ECR_REGISTRY}/painel-monitoramento:${TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.monitoramento
+    expose: ["3000"]
+
+  # financeiro-web entra aqui quando o app existir (mesmo padrão):
+  # financeiro-web:
+  #   image: ${ECR_REGISTRY}/painel-financeiro:${TAG:-latest}
+  #   restart: unless-stopped
+  #   env_file: .env.financeiro
+  #   expose: ["3000"]
+
+  worker:
+    image: ${ECR_REGISTRY}/painel-worker:${TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.monitoramento
+    # sem porta pública — só consome processing_jobs do banco
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

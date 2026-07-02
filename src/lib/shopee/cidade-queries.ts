@@ -1,6 +1,6 @@
 import "server-only"
 
-import { withPgClient } from "@/lib/pg"
+import { withPgClient } from "@painel/db"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 type SbClient = ReturnType<typeof createAdminClient>

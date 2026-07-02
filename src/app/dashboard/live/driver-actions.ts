@@ -2,7 +2,7 @@
 
 import { getSessionProfile } from "@/lib/auth"
 import { getAllowedOperacoes } from "@/lib/live-queries"
-import { withPgClient } from "@/lib/pg"
+import { withPgClient } from "@painel/db"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const DAY_MS = 86400000

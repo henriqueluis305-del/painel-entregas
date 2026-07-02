@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@painel/db": ["./packages/db/src"],
+      "@painel/auth": ["./packages/auth/src"],
+      "@painel/auth/*": ["./packages/auth/src/*"],
+      "@painel/storage": ["./packages/storage/src"]
     }
   },
   "include": [

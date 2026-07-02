@@ -1,8 +1,8 @@
 import "server-only"
 
-import type { Client } from "pg"
+import type { PoolClient } from "pg"
 
-import { withPgClient } from "@/lib/pg"
+import { withPgClient } from "@painel/db"
 
 /** Cidade/bairro resolvidos a partir de um CEP (origem: cache local ou ViaCEP). */
 export type CepInfo = { cep: string; cidade: string; bairro: string; uf: string | null }
@@ -36,7 +36,7 @@ async function fetchViaCep(cep: string): Promise<CepInfo | null> {
   }
 }
 
-async function readCache(c: Client, ceps: string[]): Promise<Map<string, CepInfo>> {
+async function readCache(c: PoolClient, ceps: string[]): Promise<Map<string, CepInfo>> {
   if (!ceps.length) return new Map()
   const r = await c.query(
     "select cep, cidade, bairro, uf from cep_cache where cep = any($1::text[])",
@@ -50,7 +50,7 @@ async function readCache(c: Client, ceps: string[]): Promise<Map<string, CepInfo
   )
 }
 
-async function writeCache(c: Client, infos: CepInfo[]): Promise<void> {
+async function writeCache(c: PoolClient, infos: CepInfo[]): Promise<void> {
   if (!infos.length) return
   const vals: unknown[] = []
   const tuples = infos.map((info, i) => {

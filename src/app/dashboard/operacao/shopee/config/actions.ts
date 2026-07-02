@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { getSessionProfile } from "@/lib/auth"
-import { withPgClient } from "@/lib/pg"
+import { withPgClient } from "@painel/db"
 import { getOperacaoBySlug } from "@/lib/queries"
 import { SHOPEE_BASE_PATH, SHOPEE_SLUG } from "@/lib/shopee"
 import { getCidadeConfigBase, type CidadeConfigItem } from "@/lib/shopee/cidade-queries"

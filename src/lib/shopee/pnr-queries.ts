@@ -1,6 +1,6 @@
 import "server-only"
 
-import { withPgClient } from "@/lib/pg"
+import { withPgClient } from "@painel/db"
 import { pnrStatusPt } from "@/lib/shopee/pnr"
 
 export type PnrStatusRow = { status: string; statusPt: string; count: number; valor: number }

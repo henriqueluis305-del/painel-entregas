@@ -1,13 +1,13 @@
 "use server"
 
 import ExcelJS from "exceljs"
-import type { Client } from "pg"
+import type { PoolClient } from "pg"
 import { revalidatePath } from "next/cache"
 
 import { getSessionProfile } from "@/lib/auth"
 import { lookupCeps, normalizeCep } from "@/lib/cep"
 import { hasPerm, PERMS, type Permission } from "@/lib/permissions"
-import { withPgClient, chunk } from "@/lib/pg"
+import { withPgClient, chunk } from "@painel/db"
 import { SHOPEE_BASE_PATH } from "@/lib/shopee"
 import { resolveDriver, dedupeById, type ParsedDriver } from "@/lib/shopee/drivers"
 import { isStuck, parseDiasPreso, resolveBaseSlug } from "@/lib/shopee/stuck"
@@ -38,7 +38,7 @@ async function requireUploadPerm(kind: string): Promise<string> {
 }
 
 async function logUpload(
-  c: Client,
+  c: PoolClient,
   email: string,
   kind: string,
   filenames: string,
@@ -184,15 +184,15 @@ function parseSla(ts: string[]) {
 }
 
 // ---------- helpers de DB ----------
-async function baseIdMap(c: Client, operacaoId: string) {
+async function baseIdMap(c: PoolClient, operacaoId: string) {
   const r = await c.query("select id, slug from base where operacao_id=$1", [operacaoId])
   return new Map<string, string>(r.rows.map((b) => [b.slug, String(b.id)]))
 }
-async function shopeeOpId(c: Client) {
+async function shopeeOpId(c: PoolClient) {
   const r = await c.query("select id from operacao where slug='shopee'")
   return r.rows[0].id as string
 }
-async function registerDrivers(c: Client, operacaoId: string, drivers: ParsedDriver[]) {
+async function registerDrivers(c: PoolClient, operacaoId: string, drivers: ParsedDriver[]) {
   const existing = await c.query("select id from driver")
   const valid = new Set(existing.rows.map((r) => String(r.id)))
   let novos = 0
@@ -210,7 +210,7 @@ async function registerDrivers(c: Client, operacaoId: string, drivers: ParsedDri
   }
   return { valid, novos }
 }
-async function recordStuckCheckpoint(c: Client, baseIds: string[], label: string, dataPtBr: string) {
+async function recordStuckCheckpoint(c: PoolClient, baseIds: string[], label: string, dataPtBr: string) {
   for (const baseId of baseIds) {
     const seq = (await c.query("select coalesce(max(seq),-1)+1 as seq from shopee_stuck_checkpoint where base_id=$1 and data_pt_br=$2", [baseId, dataPtBr])).rows[0].seq
     await c.query(

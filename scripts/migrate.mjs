@@ -3,9 +3,11 @@
 // Uso:
 //   node scripts/migrate.mjs              → aplica as pendentes de migrations/*.sql
 //   node scripts/migrate.mjs --status     → lista aplicadas × pendentes
-//   node scripts/migrate.mjs --baseline   → marca TODAS como aplicadas SEM rodar
-//                                           (use uma vez em banco que já tem o schema,
-//                                            ex.: o Supabase atual ou um restore do RDS)
+//   node scripts/migrate.mjs --baseline [arquivo.sql]
+//                                         → marca como aplicadas SEM rodar: todas, ou
+//                                           só até o arquivo dado (inclusive). Use em
+//                                           banco que já tem o schema (Supabase/RDS
+//                                           restaurado); as posteriores rodam no migrate.
 //
 // Regras:
 //   - arquivos em migrations/ ordenados por nome (0001_..., 0002_...);
@@ -62,7 +64,9 @@ async function main() {
     }
 
     if (mode === "--baseline") {
+      const upTo = process.argv[3] // opcional: marca só até este arquivo (inclusive)
       for (const f of pending) {
+        if (upTo && f > upTo) break
         await client.query(`insert into schema_migrations (name) values ($1)`, [f])
         console.log(`baseline: ${f} marcada como aplicada (sem rodar)`)
       }

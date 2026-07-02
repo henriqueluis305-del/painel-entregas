@@ -6,27 +6,61 @@ Estado: 28 tabelas, ~26 MB total. Volume pequeno — as otimizações aqui são 
 
 | # | Tema | Severidade | Status |
 |---|---|---|---|
-| 1 | 9 tabelas legadas mortas | limpeza | proposta pronta (`migrations/_propostas/0005`) |
-| 2 | Data como texto `'DD/MM/YYYY'` | **estrutural, o mais grave** | mitigado (migration 0004 aplicada) |
+| 1 | Tabelas legadas (vão reviver): normalização preventiva | **estrutural** | ✅ migration 0005 aplicada |
+| 1b | Redundâncias entre legadas × shopee_* | **decisão de design** | matriz abaixo — decidir antes de reativar |
+| 2 | Data como texto `'DD/MM/YYYY'` | **estrutural, o mais grave** | mitigado (migration 0004 aplicada; 0005 estende às legadas) |
 | 3 | "Dia mais recente" via `updated_at` | bug latente | corrigir no código (follow-up) |
 | 4 | Índices fora do padrão de consumo | performance futura | corrigido (migration 0003 aplicada) |
-| 5 | Timestamps sem fuso em 2 tabelas | consistência | corrigir no cutover RDS |
+| 5 | Timestamps sem fuso (era Alembic, 12 colunas) | consistência | ✅ corrigido na 0005 (timestamptz em tudo) |
 | 6 | Crescimento sem retenção (event/outros) | operação | política via worker (proposta) |
 | 7 | Formas normais — desvios conscientes | documentação | documentado abaixo |
 
 ---
 
-## 1. Tabelas mortas (era pré-Shopee / Reflex)
+## 1. Tabelas legadas — análise de normalização (vão receber dados de novo)
 
-Medido em produção: **todas com 0 linhas** e **zero uso no app** (telas `hoje`/`motoristas`/`liberacao` são `PagePlaceholder`; `historico`/`sla-ds` são redirect):
+`package`, `upload`, `snapshot`, `snapshot_driver`, `sla_ds_record`, `liberacao`, `user_base` estão vazias hoje mas **serão reativadas**. Vazias = janela de ouro: mudança de tipo/constraint é instantânea agora e vira migração com backfill+lock depois. A **migration 0005** (aplicada em prod e local) endureceu tudo que dava pra endurecer sem mudar semântica:
 
-`package`, `upload`, `snapshot`, `snapshot_driver`, `sla_ds_record`, `liberacao`, `user_base`, `shopee_stuck_snapshot`, `alembic_version` (resquício do Alembic/Python).
+### 1.1 O que a 0005 corrigiu (por quê)
 
-Além disso `shopee_package_event.source_upload_id` é **100% NULL** — FK morta que prende a tabela `upload`.
+| Fix | Tabelas | Problema que evitava |
+|---|---|---|
+| `timestamp` → `timestamptz` (12 colunas) | todas as legadas + app_user/base/operacao/cep_cache | era Alembic gravava sem fuso; metade do banco tinha fuso e metade não — comparação entre eras daria hora errada |
+| `json` → `jsonb` (`extra_perms`, `denied_perms`) | app_user | `json` é texto cru: sem índice, comparação por string; inconsistente com `config jsonb` da operacao |
+| CHECK em `role` e `base_scope` | app_user | texto livre (só `approval_status` tinha CHECK); typo em role viraria usuário sem permissão silencioso. Valores validados contra produção antes |
+| default de `role`: `'SUPERVISOR'` → `'USER'` | app_user | default antigo dava permissão a mais por omissão — o cadastro público nasce USER |
+| `data date` gerada + índice (padrão 0004) | snapshot, sla_ds_record | mesmas patologias do `data_pt_br` texto (§2) — nascem certas quando reviverem |
+| UNIQUE `(upload_id, codigo)` | package | mesmo pacote 2× no mesmo upload = dado sujo silencioso (não tinha unique NENHUM além da PK) |
+| UNIQUE `(snapshot_id, driver_id)` | snapshot_driver | mesmo motorista 2× na mesma foto |
+| `double precision` → `numeric(5,2)` (4 colunas de %) | snapshot, sla_ds_record | float pra percentual exibido = `93.30000000000001`; alinha com `numeric(5,2)` das shopee_* |
+| Índices de FK/consumo | liberacao, package, snapshot | FKs sem índice (Postgres não cria sozinho) |
 
-**Ação:** `migrations/_propostas/0005_drop_legado.sql` (não roda sozinha; promover a `migrations/` quando decidir). Pré-requisito único no código: tirar o count de `sla_ds_record` do `getDashboardStats` em `src/lib/queries.ts`.
+### 1.2 Normalização por tabela (forma normal + problemas restantes)
 
-**Ganho:** schema 28 → 19 tabelas; baseline menor; zero tabela órfã chegando no RDS.
+- **`upload`** — 3NF ok (metadados de arquivo, tudo depende da PK; CHECK de `kind` já existia). Restante: nada estrutural. Quando reviver, considerar coluna `s3_key` (original no bucket, padrão do fluxo novo).
+- **`package`** — 3NF ok após unique. `status` texto livre (domínio aberto — CHECK quando os valores do novo fluxo estiverem definidos).
+- **`snapshot`** — dois desvios de 3NF **documentados, não corrigidos** (decisão de quem reativar):
+  - `hora varchar` é derivável de `ts` (dependência transitiva) — redundância de exibição; recomendo preencher sempre via `to_char(ts, 'HH24:MI')` ou parar de gravar;
+  - `sla_pct`/`ds_pct` são deriváveis dos contadores (`entregues/total`) — armazenar valor derivado arrisca inconsistência; ou grava sempre recalculado no mesmo INSERT, ou vira coluna gerada;
+  - `upload_csv_id` + `upload_xlsx_id` (duas FKs nullable por tipo de arquivo) — padrão "grupo repetido"; se um dia houver 3º arquivo, virar junção `snapshot_upload(snapshot_id, upload_id, papel)`. Com 2 tipos fixos, tolerável.
+- **`sla_ds_record`** — mesma observação dos `pct` deriváveis (`sla_pct` = f(`sla_ent`,`sla_rec`)). `ts` (momento da captura) + `data` (dia de negócio) NÃO são redundantes entre si — papéis distintos, ok.
+- **`snapshot_driver`** — espelho exato de `shopee_ds_driver` (mesmas 4 métricas + `driver_name` snapshot). Normalização ok; redundância conceitual → §1.3.
+- **`liberacao`** — 3NF ok. `status` texto livre: fechar domínio (CHECK) quando os estados do fluxo novo existirem.
+- **`user_base`** — junção pura `(user_id, base_id)` com PK composta: **a tabela mais normalizada do banco**. Problema não é ela — é coexistir com outro modelo de acesso (§1.3).
+
+### 1.3 Matriz de redundância — legadas × shopee_* (decidir ANTES de reativar)
+
+O risco real não é forma normal — é **a mesma entidade do mundo real modelada 2–3×**. Cada par abaixo precisa de um dono claro antes dos dados voltarem:
+
+| Entidade real | Modelo legado | Modelo novo | Conflito / recomendação |
+|---|---|---|---|
+| **Pacote** | `package` (linha por import, upload_id NOT NULL) | `shopee_package` (estado atual, upsert por `(base_id,codigo)`) + `shopee_package_event` (histórico) | Mesma entidade, ciclos de vida diferentes. Se `package` voltar como *staging de import cru* → ok, papéis distintos (documentar). Se voltar como "estado do pacote" → **duplicação direta**; usar shopee_package e aposentar |
+| **Upload/arquivo** | `upload` (1 linha/arquivo, contadores parsed/kept/rejected, por base) | `shopee_upload_log` (1 linha/LOTE, `filenames` **string com vírgulas** ⚠, `user_email` sem FK ⚠) + `processing_jobs` (fila por arquivo) | **Três formas do mesmo fato.** A melhor estrutura é a LEGADA (1 linha/arquivo + FK de usuário). Recomendo: `upload` vira o registro canônico por arquivo (ganha `s3_key`); `shopee_upload_log` referencia `upload.id` em vez de duplicar filenames/email — o `filenames` com vírgula viola 1NF e o `user_email` cria anomalia (troca de e-mail órfã o log) |
+| **Foto agregada do dia** | `snapshot` + `snapshot_driver` | `shopee_sla_record` + `shopee_ds_driver` + checkpoints | Sobreposição ~90% das colunas. Legítimo SE `snapshot` servir às operações NÃO-Shopee (genérico por base). Se reativar pra Shopee → duplicação; usar as shopee_* |
+| **Acesso do usuário** | `user_base` (junção N:N explícita) | `app_user.base_scope`+`operacao_id`+`sidebar_operacoes[]` (colunas de escopo) | **Dois modelos de autorização.** Se `user_base` voltar, definir precedência (ex.: user_base = allowlist fina DENTRO do escopo) e escrever `hasPerm`/`requireOperacaoAccess` contra UM modelo só — hoje o código lê apenas as colunas de escopo |
+| Motorista (nome) | `snapshot_driver.driver_name` | `shopee_ds_driver.driver_name`, `shopee_pnr.driver_name` | Igual nos dois mundos: snapshot histórico intencional — ok |
+
+**Regra prática na reativação:** pra cada tela nova que usar uma legada, responder "quem é o dono desta entidade?" — se a resposta citar duas tabelas, uma delas referencia a outra por FK (nunca copiar colunas).
 
 ## 2. Data como texto `'DD/MM/YYYY'` (o problema estrutural central)
 
@@ -61,7 +95,7 @@ Não criado de propósito: índice pra `join cep_cache on regexp_replace(p.cep,.
 
 ## 5. Consistência de tipos
 
-- `base.created_at` e `cep_cache.fetched_at` são `timestamp` **sem** fuso; todo o resto é `timestamptz`. Corrigir no cutover RDS (`alter ... type timestamptz using ... at time zone 'UTC'`) — barato, tabelas minúsculas.
+- ~~`timestamp` sem fuso na era Alembic~~ → **corrigido na 0005**: as 12 colunas viraram `timestamptz` (interpretação UTC, que era o fuso do servidor que gravou).
 - IDs `varchar` com `default gen_random_uuid()::text` (operacao/base): uuid nativo seria 16 bytes vs 36 e validaria formato, mas a troca cascateia por todas as FKs. **Veredito: não vale agora.** O `::text` nos filtros é no-op (coluna já é varchar). Se quiser, padronizar no cutover RDS — não antes. Bônus dessa escolha: `app_user.id text` aceita o `sub` do Cognito sem migração.
 - `driver.id varchar` = ID externo Shopee → correto ser texto (chave natural de fora).
 
@@ -105,7 +139,8 @@ delete from processing_jobs where status='done' and finished_at < now() - interv
 |---|---|---|
 | Índices de consumo real | `0003` | ✅ aplicada (prod + local) |
 | `data date` gerada + índices cronológicos | `0004` | ✅ aplicada (prod + local) |
-| Drop das 9 tabelas mortas | `_propostas/0005` | ⏸ aguardando seu ok (1 ajuste de código antes) |
+| Normalização preventiva das legadas (timestamptz, jsonb, CHECKs, uniques, numeric) | `0005` | ✅ aplicada (prod + local) |
+| Decidir donos das entidades duplicadas (§1.3) antes de reativar legadas | design | ⏸ decisão de produto |
 | Código: ordenar/filtrar por `data`, `max(data)` no latestDay, join cep direto | src/lib | ⏸ follow-up incremental |
+| `shopee_upload_log`: referenciar `upload.id` (fim do filenames-com-vírgula / user_email sem FK) | código + migration | ⏸ junto da reativação de `upload` |
 | Retenção via tick diário no worker | apps/worker | ⏸ follow-up |
-| `timestamptz` nas 2 colunas sem fuso | cutover RDS | ⏸ |

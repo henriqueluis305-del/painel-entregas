@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query } from "@painel/db"
 import { STATUS_MAP } from "@/lib/shopee/sla"
 
 export type SlaBaseRow = {
@@ -15,7 +15,7 @@ export type SlaBaseRow = {
   pct: number
 }
 
-type EmbeddedSla = {
+type SlaRaw = {
   data_pt_br: string
   total: number
   entregues: number
@@ -25,7 +25,8 @@ type EmbeddedSla = {
   outros: number
   sla_pct: number
   por_status: Record<string, number> | null
-  base: { slug: string; label: string; operacao_id: string } | null
+  base_slug: string
+  base_label: string
 }
 
 export type StatusRow = { status: string; categoria: string; count: number; pct: number }
@@ -51,34 +52,35 @@ export async function getSlaData(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<SlaData> {
-  const sb = createAdminClient()
-  const { data: last } = await sb
-    .from("shopee_sla_record")
-    .select("data_pt_br, base!inner(operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-  const day = (last ?? [])[0]?.data_pt_br ?? null
+  const last = await query<{ data_pt_br: string }>(
+    `select r.data_pt_br
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1
+      order by r.updated_at desc
+      limit 1`,
+    [operacaoId],
+  )
+  const day = last[0]?.data_pt_br ?? null
   const empty: SlaData = { day: null, total: 0, entregues: 0, emRota: 0, ocorrencias: 0, faltantes: 0, outros: 0, pct: 0, perBase: [], porStatus: [] }
   if (!day) return empty
 
-  let q = sb
-    .from("shopee_sla_record")
-    .select(
-      "data_pt_br, total, entregues, em_rota, ocorrencias, faltantes, outros, sla_pct, por_status, base!inner(slug, label, operacao_id)",
-    )
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", day)
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-
-  const { data, error } = await q
-  if (error) throw new Error(`getSlaData: ${error.message}`)
-  const rows = (data ?? []) as unknown as EmbeddedSla[]
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const rows = await query<SlaRaw>(
+    `select r.data_pt_br, r.total, r.entregues, r.em_rota, r.ocorrencias, r.faltantes,
+            r.outros, r.sla_pct::float8 as sla_pct, r.por_status,
+            b.slug as base_slug, b.label as base_label
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 and r.data_pt_br = $2 ${baseFilter}`,
+    params,
+  )
 
   const perBase: SlaBaseRow[] = rows
     .map((r) => ({
-      base_slug: r.base?.slug ?? "",
-      base_label: r.base?.label ?? "",
+      base_slug: r.base_slug,
+      base_label: r.base_label,
       total: r.total,
       entregues: r.entregues,
       em_rota: r.em_rota,
@@ -122,12 +124,11 @@ export async function getSlaData(
 
 export type SlaPoint = { label: string; pct: number }
 
-type EmbeddedSlaCkpt = {
+type SlaCkptRaw = {
   seq: number
   label: string
   total: number
   entregues: number
-  base: { slug: string; operacao_id: string } | null
 }
 
 /** Crescimento do SLA: SLA% por upload (checkpoint) do dia atual, agregado nas bases. */
@@ -135,30 +136,32 @@ export async function getSlaCheckpoints(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<SlaPoint[]> {
-  const sb = createAdminClient()
   // só o dia mais recente (o "dia atual" do painel)
-  const { data: last } = await sb
-    .from("shopee_sla_checkpoint")
-    .select("data_pt_br, base!inner(operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .order("ts", { ascending: false })
-    .limit(1)
-  const day = (last ?? [])[0]?.data_pt_br as string | undefined
+  const last = await query<{ data_pt_br: string }>(
+    `select c.data_pt_br
+       from shopee_sla_checkpoint c
+       join base b on b.id = c.base_id
+      where b.operacao_id::text = $1
+      order by c.ts desc
+      limit 1`,
+    [operacaoId],
+  )
+  const day = last[0]?.data_pt_br
   if (!day) return []
 
-  let q = sb
-    .from("shopee_sla_checkpoint")
-    .select("seq, label, total, entregues, base!inner(slug, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", day)
-    .order("seq")
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-
-  const { data, error } = await q
-  if (error) throw new Error(`getSlaCheckpoints: ${error.message}`)
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const data = await query<SlaCkptRaw>(
+    `select c.seq, c.label, c.total, c.entregues
+       from shopee_sla_checkpoint c
+       join base b on b.id = c.base_id
+      where b.operacao_id::text = $1 and c.data_pt_br = $2 ${baseFilter}
+      order by c.seq`,
+    params,
+  )
 
   const map = new Map<number, { label: string; total: number; entregues: number }>()
-  for (const r of (data ?? []) as unknown as EmbeddedSlaCkpt[]) {
+  for (const r of data) {
     const m = map.get(r.seq) ?? { label: r.label, total: 0, entregues: 0 }
     m.total += r.total
     m.entregues += r.entregues
@@ -179,18 +182,18 @@ export async function getSlaEvolution(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<SlaPoint[]> {
-  const sb = createAdminClient()
-  let q = sb
-    .from("shopee_sla_record")
-    .select("data_pt_br, total, entregues, base!inner(slug, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-
-  const { data, error } = await q
-  if (error) throw new Error(`getSlaEvolution: ${error.message}`)
+  const baseFilter = baseSlugs.length ? "and b.slug = any($2::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, baseSlugs] : [operacaoId]
+  const data = await query<{ data_pt_br: string; total: number; entregues: number }>(
+    `select r.data_pt_br, r.total, r.entregues
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 ${baseFilter}`,
+    params,
+  )
 
   const map = new Map<string, { total: number; entregues: number }>()
-  for (const r of (data ?? []) as unknown as EmbeddedSla[]) {
+  for (const r of data) {
     const m = map.get(r.data_pt_br) ?? { total: 0, entregues: 0 }
     m.total += r.total
     m.entregues += r.entregues

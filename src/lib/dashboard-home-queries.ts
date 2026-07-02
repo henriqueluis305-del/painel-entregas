@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query } from "@painel/db"
 import type { OpLite } from "@/lib/live-queries"
 import type { DriverRank } from "@/lib/live-queries"
 
@@ -50,10 +50,6 @@ export type HomeDriverPresence = {
   driverId: string
 }
 
-type BaseScoped = {
-  base: { id: string; slug?: string; operacao_id: string } | null
-}
-
 function parseBrDate(s: string): number {
   const [d, m, y] = s.split("/").map(Number)
   if (!d || !m || !y) return Number.NaN
@@ -62,13 +58,6 @@ function parseBrDate(s: string): number {
 
 function formatBrDate(time: number) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(time))
-}
-
-function datePtBrFromTimestamp(value: string | null | undefined) {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(date)
 }
 
 function lastDates(referenceDay: string, days: number) {
@@ -92,49 +81,41 @@ export async function getHomeBases(operations: OpLite[]): Promise<{
   const operationIds = operations.map((op) => op.id)
   if (operationIds.length === 0) return { bases: [], driverPresence: [] }
 
-  const sb = createAdminClient()
   const operationLabelById = new Map(operations.map((op) => [op.id, op.label]))
-  const [baseRes, slaRes, driverRes] = await Promise.all([
-    sb
-      .from("base")
-      .select("id, slug, label, operacao_id")
-      .eq("active", true)
-      .in("operacao_id", operationIds)
-      .order("operacao_id")
-      .order("slug"),
-    sb
-      .from("shopee_sla_record")
-      .select("total, base!inner(id, operacao_id)")
-      .in("base.operacao_id", operationIds),
-    sb
-      .from("shopee_ds_driver")
-      .select("driver_id, base!inner(id, operacao_id)")
-      .in("base.operacao_id", operationIds),
+  const [baseRows, slaRows, driverRows] = await Promise.all([
+    query<{ id: string; slug: string; label: string; operacao_id: string }>(
+      `select id, slug, label, operacao_id
+         from base
+        where active and operacao_id::text = any($1::text[])
+        order by operacao_id, slug`,
+      [operationIds],
+    ),
+    query<{ base_id: string; total: number }>(
+      `select r.base_id, coalesce(sum(r.total), 0)::int as total
+         from shopee_sla_record r
+         join base b on b.id = r.base_id
+        where b.operacao_id::text = any($1::text[])
+        group by r.base_id`,
+      [operationIds],
+    ),
+    query<{ base_id: string; driver_id: string }>(
+      `select distinct d.base_id, d.driver_id
+         from shopee_ds_driver d
+         join base b on b.id = d.base_id
+        where d.driver_id is not null and b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
   ])
 
-  type BaseRow = { id: string; slug: string; label: string; operacao_id: string }
-  type SlaRow = { total: number; base: { id: string; operacao_id: string } | null }
-  type DriverRow = { driver_id: string | null; base: { id: string; operacao_id: string } | null }
-
   const packagesByBase = new Map<string, number>()
-  for (const row of (slaRes.data ?? []) as unknown as SlaRow[]) {
-    const baseId = row.base?.id
-    if (!baseId) continue
-    packagesByBase.set(baseId, (packagesByBase.get(baseId) ?? 0) + row.total)
-  }
+  for (const row of slaRows) packagesByBase.set(row.base_id, row.total)
 
-  const seenPresence = new Set<string>()
-  const driverPresence: HomeDriverPresence[] = []
-  for (const row of (driverRes.data ?? []) as unknown as DriverRow[]) {
-    const baseId = row.base?.id
-    if (!baseId || !row.driver_id) continue
-    const itemKey = `${baseId}::${row.driver_id}`
-    if (seenPresence.has(itemKey)) continue
-    seenPresence.add(itemKey)
-    driverPresence.push({ baseId, driverId: row.driver_id })
-  }
+  const driverPresence: HomeDriverPresence[] = driverRows.map((row) => ({
+    baseId: row.base_id,
+    driverId: row.driver_id,
+  }))
 
-  const bases = ((baseRes.data ?? []) as unknown as BaseRow[]).map((base) => ({
+  const bases = baseRows.map((base) => ({
     id: base.id,
     slug: base.slug,
     label: base.label,
@@ -152,34 +133,29 @@ export async function getHomeKpis(operations: OpLite[]): Promise<HomeKpis> {
     return { activeDrivers: 0, monitoredOperations: 0, dataBases: 0, monitoredPackages: 0 }
   }
 
-  const sb = createAdminClient()
-  const [drivers, bases, slaRows] = await Promise.all([
-    sb
-      .from("driver")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true)
-      .in("operacao_id", operationIds),
-    sb
-      .from("base")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true)
-      .in("operacao_id", operationIds),
-    sb
-      .from("shopee_sla_record")
-      .select("total, base!inner(operacao_id)")
-      .in("base.operacao_id", operationIds),
+  const [driverCount, baseCount, slaSum] = await Promise.all([
+    query<{ n: number }>(
+      `select count(*)::int as n from driver where active and operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
+    query<{ n: number }>(
+      `select count(*)::int as n from base where active and operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
+    query<{ n: number }>(
+      `select coalesce(sum(r.total), 0)::int as n
+         from shopee_sla_record r
+         join base b on b.id = r.base_id
+        where b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
   ])
 
-  const monitoredPackages = ((slaRows.data ?? []) as { total: number }[]).reduce(
-    (sum, row) => sum + row.total,
-    0,
-  )
-
   return {
-    activeDrivers: drivers.count ?? 0,
+    activeDrivers: driverCount[0]?.n ?? 0,
     monitoredOperations: operations.length,
-    dataBases: bases.count ?? 0,
-    monitoredPackages,
+    dataBases: baseCount[0]?.n ?? 0,
+    monitoredPackages: slaSum[0]?.n ?? 0,
   }
 }
 
@@ -189,41 +165,44 @@ export async function getHomeMetricSeries(
   const operationIds = operations.map((op) => op.id)
   if (operationIds.length === 0) return { points: [], latestDay: null }
 
-  const sb = createAdminClient()
-  const [dsRes, slaRes, stuckRes, pnrRes] = await Promise.all([
-    sb
-      .from("shopee_ds_driver")
-      .select("data_pt_br, saiu, entregues, base!inner(id, operacao_id)")
-      .in("base.operacao_id", operationIds),
-    sb
-      .from("shopee_sla_record")
-      .select("data_pt_br, total, entregues, base!inner(id, operacao_id)")
-      .in("base.operacao_id", operationIds),
-    sb
-      .from("shopee_stuck_checkpoint")
-      .select("base_id, data_pt_br, seq, ainda_stuck, base!inner(id, operacao_id)")
-      .in("base.operacao_id", operationIds),
-    sb
-      .from("shopee_pnr")
-      .select("valor, created_time, base!inner(id, operacao_id)")
-      .not("created_time", "is", null)
-      .in("base.operacao_id", operationIds),
+  type DsRow = { operacao_id: string; base_id: string; data_pt_br: string; saiu: number; entregues: number }
+  type SlaRow = { operacao_id: string; base_id: string; data_pt_br: string; total: number; entregues: number }
+  type StuckRow = { operacao_id: string; base_id: string; data_pt_br: string; seq: number; ainda_stuck: number }
+  type PnrRow = { operacao_id: string; base_id: string; data_pt_br: string; valor: number | null }
+
+  const [dsRows, slaRows, stuckRows, pnrRows] = await Promise.all([
+    query<DsRow>(
+      `select b.operacao_id::text as operacao_id, d.base_id, d.data_pt_br, d.saiu, d.entregues
+         from shopee_ds_driver d
+         join base b on b.id = d.base_id
+        where b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
+    query<SlaRow>(
+      `select b.operacao_id::text as operacao_id, r.base_id, r.data_pt_br, r.total, r.entregues
+         from shopee_sla_record r
+         join base b on b.id = r.base_id
+        where b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
+    query<StuckRow>(
+      `select b.operacao_id::text as operacao_id, s.base_id, s.data_pt_br, s.seq, s.ainda_stuck
+         from shopee_stuck_checkpoint s
+         join base b on b.id = s.base_id
+        where b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
+    // dia do PNR resolvido no SQL (America/Sao_Paulo)
+    query<PnrRow>(
+      `select b.operacao_id::text as operacao_id, p.base_id, p.valor::float8 as valor,
+              to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') as data_pt_br
+         from shopee_pnr p
+         join base b on b.id = p.base_id
+        where p.created_time is not null and b.operacao_id::text = any($1::text[])`,
+      [operationIds],
+    ),
   ])
 
-  type DsRow = BaseScoped & { data_pt_br: string; saiu: number; entregues: number }
-  type SlaRow = BaseScoped & { data_pt_br: string; total: number; entregues: number }
-  type StuckRow = BaseScoped & {
-    base_id: string
-    data_pt_br: string
-    seq: number
-    ainda_stuck: number
-  }
-  type PnrRow = BaseScoped & { created_time: string | null; valor: number | null }
-
-  const dsRows = (dsRes.data ?? []) as unknown as DsRow[]
-  const slaRows = (slaRes.data ?? []) as unknown as SlaRow[]
-  const stuckRows = (stuckRes.data ?? []) as unknown as StuckRow[]
-  const pnrRows = (pnrRes.data ?? []) as unknown as PnrRow[]
   const allDates = new Set<string>()
   const baseIdsByOperation = new Map<string, Set<string>>()
 
@@ -235,12 +214,9 @@ export async function getHomeMetricSeries(
 
   const dsMap = new Map<string, { saiu: number; entregues: number }>()
   for (const row of dsRows) {
-    const operationId = row.base?.operacao_id
-    const baseId = row.base?.id
-    if (!operationId || !baseId) continue
     allDates.add(row.data_pt_br)
-    addBase(operationId, baseId)
-    const itemKey = baseKey(operationId, baseId, row.data_pt_br)
+    addBase(row.operacao_id, row.base_id)
+    const itemKey = baseKey(row.operacao_id, row.base_id, row.data_pt_br)
     const current = dsMap.get(itemKey) ?? { saiu: 0, entregues: 0 }
     current.saiu += row.saiu
     current.entregues += row.entregues
@@ -249,12 +225,9 @@ export async function getHomeMetricSeries(
 
   const slaMap = new Map<string, { total: number; entregues: number }>()
   for (const row of slaRows) {
-    const operationId = row.base?.operacao_id
-    const baseId = row.base?.id
-    if (!operationId || !baseId) continue
     allDates.add(row.data_pt_br)
-    addBase(operationId, baseId)
-    const itemKey = baseKey(operationId, baseId, row.data_pt_br)
+    addBase(row.operacao_id, row.base_id)
+    const itemKey = baseKey(row.operacao_id, row.base_id, row.data_pt_br)
     const current = slaMap.get(itemKey) ?? { total: 0, entregues: 0 }
     current.total += row.total
     current.entregues += row.entregues
@@ -263,32 +236,24 @@ export async function getHomeMetricSeries(
 
   const latestStuckByBase = new Map<string, StuckRow>()
   for (const row of stuckRows) {
-    const operationId = row.base?.operacao_id
-    if (!operationId) continue
     allDates.add(row.data_pt_br)
-    addBase(operationId, row.base_id)
-    const itemKey = baseKey(operationId, row.base_id, row.data_pt_br)
+    addBase(row.operacao_id, row.base_id)
+    const itemKey = baseKey(row.operacao_id, row.base_id, row.data_pt_br)
     const current = latestStuckByBase.get(itemKey)
     if (!current || row.seq > current.seq) latestStuckByBase.set(itemKey, row)
   }
 
   const stuckMap = new Map<string, number>()
   for (const row of latestStuckByBase.values()) {
-    const operationId = row.base?.operacao_id
-    if (!operationId) continue
-    const itemKey = baseKey(operationId, row.base_id, row.data_pt_br)
+    const itemKey = baseKey(row.operacao_id, row.base_id, row.data_pt_br)
     stuckMap.set(itemKey, (stuckMap.get(itemKey) ?? 0) + row.ainda_stuck)
   }
 
   const pnrMap = new Map<string, number>()
   for (const row of pnrRows) {
-    const operationId = row.base?.operacao_id
-    const baseId = row.base?.id
-    const date = datePtBrFromTimestamp(row.created_time)
-    if (!operationId || !baseId || !date) continue
-    allDates.add(date)
-    addBase(operationId, baseId)
-    const itemKey = baseKey(operationId, baseId, date)
+    allDates.add(row.data_pt_br)
+    addBase(row.operacao_id, row.base_id)
+    const itemKey = baseKey(row.operacao_id, row.base_id, row.data_pt_br)
     pnrMap.set(itemKey, (pnrMap.get(itemKey) ?? 0) + Number(row.valor ?? 0))
   }
 
@@ -331,55 +296,59 @@ export async function getHomeDriverRanking(
   const operationIds = operations.map((op) => op.id)
   if (operationIds.length === 0 || !day) return []
 
-  const sb = createAdminClient()
-  const [dsRes, pnrRes] = await Promise.all([
-    sb
-      .from("shopee_ds_driver")
-      .select("saiu, entregues, ocorrencias, driver_id, driver(name), base!inner(id, slug, operacao_id)")
-      .eq("data_pt_br", day)
-      .in("base.operacao_id", operationIds),
-    sb
-      .from("shopee_pnr")
-      .select("driver_id, valor, created_time, base!inner(id, slug, operacao_id)")
-      .not("created_time", "is", null)
-      .in("base.operacao_id", operationIds),
-  ])
-
   type Row = {
     saiu: number
     entregues: number
     ocorrencias: number
     driver_id: string | null
-    driver: { name: string } | null
-    base: { id: string; slug: string; operacao_id: string } | null
+    driver_name: string | null
+    base_id: string
+    base_slug: string
+    operacao_id: string
   }
-  type PnrRow = {
-    driver_id: string | null
-    valor: number | null
-    created_time: string | null
-    base: { id: string; slug: string; operacao_id: string } | null
-  }
+  type PnrRow = { driver_id: string; valor: number | null; base_id: string }
+
+  const [dsRows, pnrRows] = await Promise.all([
+    query<Row>(
+      `select d.saiu, d.entregues, d.ocorrencias, d.driver_id, dr.name as driver_name,
+              d.base_id, b.slug as base_slug, b.operacao_id::text as operacao_id
+         from shopee_ds_driver d
+         join base b on b.id = d.base_id
+         left join driver dr on dr.id = d.driver_id
+        where d.data_pt_br = $1 and b.operacao_id::text = any($2::text[])`,
+      [day, operationIds],
+    ),
+    // dia do PNR resolvido no SQL (America/Sao_Paulo)
+    query<PnrRow>(
+      `select p.driver_id, p.valor::float8 as valor, p.base_id
+         from shopee_pnr p
+         join base b on b.id = p.base_id
+        where p.driver_id is not null
+          and to_char(p.created_time at time zone 'America/Sao_Paulo', 'DD/MM/YYYY') = $1
+          and b.operacao_id::text = any($2::text[])`,
+      [day, operationIds],
+    ),
+  ])
 
   const pnrByDriverBase = new Map<string, number>()
-  for (const row of (pnrRes.data ?? []) as unknown as PnrRow[]) {
-    if (!row.driver_id || !row.base || datePtBrFromTimestamp(row.created_time) !== day) continue
-    const itemKey = `${row.base.id}::${row.driver_id}`
+  for (const row of pnrRows) {
+    const itemKey = `${row.base_id}::${row.driver_id}`
     pnrByDriverBase.set(itemKey, (pnrByDriverBase.get(itemKey) ?? 0) + Number(row.valor ?? 0))
   }
 
-  return ((dsRes.data ?? []) as unknown as Row[])
-    .filter((row) => row.driver_id && row.base)
+  return dsRows
+    .filter((row) => row.driver_id)
     .map((row) => ({
       driver_id: row.driver_id!,
-      name: row.driver?.name ?? row.driver_id!,
+      name: row.driver_name ?? row.driver_id!,
       saiu: row.saiu,
       entregues: row.entregues,
       ocorrencias: row.ocorrencias,
       ds_pct: row.saiu ? round1((row.entregues / row.saiu) * 100) : 0,
-      prejuizo: Number((pnrByDriverBase.get(`${row.base!.id}::${row.driver_id}`) ?? 0).toFixed(2)),
-      baseId: row.base!.id,
-      baseSlug: row.base!.slug,
-      operationId: row.base!.operacao_id,
+      prejuizo: Number((pnrByDriverBase.get(`${row.base_id}::${row.driver_id}`) ?? 0).toFixed(2)),
+      baseId: row.base_id,
+      baseSlug: row.base_slug,
+      operationId: row.operacao_id,
     }))
     .sort((a, b) => b.ocorrencias - a.ocorrencias || a.ds_pct - b.ds_pct)
 }

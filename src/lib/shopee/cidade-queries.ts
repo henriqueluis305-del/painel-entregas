@@ -1,9 +1,6 @@
 import "server-only"
 
-import { withPgClient } from "@painel/db"
-import { createAdminClient } from "@/lib/supabase/admin"
-
-type SbClient = ReturnType<typeof createAdminClient>
+import { query, withPgClient } from "@painel/db"
 
 /** Linha da tabela por cidade do SLA (CIDADE/TOTAL/ENTREGUE/EM ROTA/INSUCESSOS/OUTROS/%). */
 export type SlaCidadeRow = {
@@ -38,24 +35,25 @@ type SlaCidadeRaw = {
   ocorrencias: number
   faltantes: number
   outros: number
-  base: { slug: string; operacao_id: string } | null
 }
 
 async function latestDay(
-  sb: SbClient,
   table: "shopee_sla_cidade" | "shopee_ds_driver",
   operacaoId: string,
   baseSlugs: string[],
 ): Promise<string | null> {
-  let q = sb
-    .from(table)
-    .select("data_pt_br, base!inner(slug, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-  const { data } = await q
-  return ((data ?? []) as unknown as { data_pt_br: string }[])[0]?.data_pt_br ?? null
+  const baseFilter = baseSlugs.length ? "and b.slug = any($2::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, baseSlugs] : [operacaoId]
+  const rows = await query<{ data_pt_br: string }>(
+    `select t.data_pt_br
+       from ${table} t
+       join base b on b.id = t.base_id
+      where b.operacao_id::text = $1 ${baseFilter}
+      order by t.updated_at desc
+      limit 1`,
+    params,
+  )
+  return rows[0]?.data_pt_br ?? null
 }
 
 /**
@@ -63,17 +61,14 @@ async function latestDay(
  * cidade com `enabled = true`; a ausência de linha (ou desligada) fica de fora.
  * Um switch só, vale p/ SLA, DS e o "Fora de Abrangência" do Stuck.
  */
-async function enabledCidades(sb: SbClient, baseIds: string[]): Promise<Set<string>> {
+async function enabledCidades(baseIds: string[]): Promise<Set<string>> {
   if (!baseIds.length) return new Set()
-  const { data } = await sb
-    .from("shopee_base_cidade")
-    .select("base_id, cidade, enabled")
-    .in("base_id", baseIds)
-  const set = new Set<string>()
-  for (const v of (data ?? []) as { base_id: string; cidade: string; enabled: boolean }[]) {
-    if (v.enabled) set.add(`${v.base_id}|${v.cidade}`)
-  }
-  return set
+  const rows = await query<{ base_id: string; cidade: string }>(
+    `select base_id, cidade from shopee_base_cidade
+      where enabled and base_id::text = any($1::text[])`,
+    [baseIds],
+  )
+  return new Set(rows.map((v) => `${v.base_id}|${v.cidade}`))
 }
 
 /** SLA por cidade do dia mais recente, só as cidades habilitadas no Config. */
@@ -81,23 +76,20 @@ export async function getSlaCidades(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<{ day: string | null; rows: SlaCidadeRow[] }> {
-  const sb = createAdminClient()
-  const day = await latestDay(sb, "shopee_sla_cidade", operacaoId, baseSlugs)
+  const day = await latestDay("shopee_sla_cidade", operacaoId, baseSlugs)
   if (!day) return { day: null, rows: [] }
 
-  let q = sb
-    .from("shopee_sla_cidade")
-    .select(
-      "base_id, cidade, total, entregues, em_rota, ocorrencias, faltantes, outros, base!inner(slug, operacao_id)",
-    )
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", day)
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-  const { data, error } = await q
-  if (error) throw new Error(`getSlaCidades: ${error.message}`)
-  const raw = (data ?? []) as unknown as SlaCidadeRaw[]
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const raw = await query<SlaCidadeRaw>(
+    `select c.base_id, c.cidade, c.total, c.entregues, c.em_rota, c.ocorrencias, c.faltantes, c.outros
+       from shopee_sla_cidade c
+       join base b on b.id = c.base_id
+      where b.operacao_id::text = $1 and c.data_pt_br = $2 ${baseFilter}`,
+    params,
+  )
 
-  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
+  const enabled = await enabledCidades([...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, SlaCidadeRow>()
   for (const r of raw) {
@@ -127,7 +119,6 @@ type SlaOutrosRaw = {
   cidade: string
   status: string
   codigo: string
-  base: { slug: string; operacao_id: string } | null
 }
 
 /**
@@ -138,30 +129,22 @@ export async function getSlaOutros(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<{ day: string | null; cidades: SlaOutrosCidade[] }> {
-  const sb = createAdminClient()
-  const day = await latestDay(sb, "shopee_sla_cidade", operacaoId, baseSlugs)
+  const day = await latestDay("shopee_sla_cidade", operacaoId, baseSlugs)
   if (!day) return { day: null, cidades: [] }
 
-  // Pode passar de 1000 linhas — pagina até esvaziar (limite do PostgREST).
-  const raw: SlaOutrosRaw[] = []
-  const PAGE = 1000
-  for (let from = 0; ; from += PAGE) {
-    let q = sb
-      .from("shopee_sla_outros_item")
-      .select("base_id, cidade, status, codigo, base!inner(slug, operacao_id)")
-      .eq("base.operacao_id", operacaoId)
-      .eq("data_pt_br", day)
-      .order("cidade")
-      .range(from, from + PAGE - 1)
-    if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-    const { data, error } = await q
-    if (error) throw new Error(`getSlaOutros: ${error.message}`)
-    const batch = (data ?? []) as unknown as SlaOutrosRaw[]
-    raw.push(...batch)
-    if (batch.length < PAGE) break
-  }
+  // SQL direto não tem o limite de 1000 linhas do PostgREST — uma query resolve.
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const raw = await query<SlaOutrosRaw>(
+    `select i.base_id, i.cidade, i.status, i.codigo
+       from shopee_sla_outros_item i
+       join base b on b.id = i.base_id
+      where b.operacao_id::text = $1 and i.data_pt_br = $2 ${baseFilter}
+      order by i.cidade`,
+    params,
+  )
 
-  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
+  const enabled = await enabledCidades([...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, SlaOutrosCidade>()
   for (const r of raw) {
@@ -185,7 +168,6 @@ type DsRaw = {
   entregues: number
   em_rota: number
   ocorrencias: number
-  base: { slug: string; operacao_id: string } | null
 }
 
 /** DS por cidade: cruza cada motorista (DS) com a cidade dele vinda do SLA (PROCV). */
@@ -193,31 +175,28 @@ export async function getDsCidades(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<{ day: string | null; rows: DsCidadeRow[] }> {
-  const sb = createAdminClient()
-  const day = await latestDay(sb, "shopee_ds_driver", operacaoId, baseSlugs)
+  const day = await latestDay("shopee_ds_driver", operacaoId, baseSlugs)
   if (!day) return { day: null, rows: [] }
 
-  let q = sb
-    .from("shopee_ds_driver")
-    .select("base_id, driver_id, saiu, entregues, em_rota, ocorrencias, base!inner(slug, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", day)
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-  const { data, error } = await q
-  if (error) throw new Error(`getDsCidades: ${error.message}`)
-  const raw = (data ?? []) as unknown as DsRaw[]
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const raw = await query<DsRaw>(
+    `select d.base_id, d.driver_id, d.saiu, d.entregues, d.em_rota, d.ocorrencias
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 and d.data_pt_br = $2 ${baseFilter}`,
+    params,
+  )
 
   // PROCV: cidade do motorista vinda do SLA do mesmo dia/base.
-  const { data: mapData } = await sb
-    .from("shopee_sla_driver_cidade")
-    .select("base_id, driver_id, cidade")
-    .eq("data_pt_br", day)
+  const mapData = await query<{ base_id: string; driver_id: string; cidade: string }>(
+    `select base_id, driver_id, cidade from shopee_sla_driver_cidade where data_pt_br = $1`,
+    [day],
+  )
   const cidadeOf = new Map<string, string>()
-  for (const m of (mapData ?? []) as { base_id: string; driver_id: string; cidade: string }[]) {
-    cidadeOf.set(`${m.base_id}|${m.driver_id}`, m.cidade)
-  }
+  for (const m of mapData) cidadeOf.set(`${m.base_id}|${m.driver_id}`, m.cidade)
 
-  const enabled = await enabledCidades(sb, [...new Set(raw.map((r) => r.base_id))])
+  const enabled = await enabledCidades([...new Set(raw.map((r) => r.base_id))])
 
   const agg = new Map<string, DsCidadeRow>()
   for (const r of raw) {

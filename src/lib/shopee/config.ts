@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query } from "@painel/db"
 import { SHOPEE_SLUG } from "@/lib/shopee"
 
 export type ShopeeConfig = {
@@ -13,13 +13,11 @@ const DEFAULTS: ShopeeConfig = { stuckDailyReset: true }
 type ConfigRow = { id?: string; config: Record<string, unknown> | null }
 
 export async function getShopeeConfig(): Promise<ShopeeConfig> {
-  const sb = createAdminClient()
-  const { data } = await sb
-    .from("operacao")
-    .select("config")
-    .eq("slug", SHOPEE_SLUG)
-    .single<ConfigRow>()
-  const c = data?.config ?? {}
+  const rows = await query<ConfigRow>(
+    `select config from operacao where slug = $1 limit 1`,
+    [SHOPEE_SLUG],
+  )
+  const c = rows[0]?.config ?? {}
   return {
     stuckDailyReset:
       typeof c.stuck_daily_reset === "boolean"
@@ -33,14 +31,15 @@ export async function setShopeeConfigKey(
   key: string,
   value: unknown,
 ): Promise<void> {
-  const sb = createAdminClient()
-  const { data, error: readErr } = await sb
-    .from("operacao")
-    .select("id, config")
-    .eq("slug", SHOPEE_SLUG)
-    .single<ConfigRow>()
-  if (readErr || !data?.id) throw new Error("operação shopee não encontrada")
-  const next = { ...(data.config ?? {}), [key]: value }
-  const { error } = await sb.from("operacao").update({ config: next }).eq("id", data.id)
-  if (error) throw new Error(error.message)
+  const rows = await query<ConfigRow>(
+    `select id, config from operacao where slug = $1 limit 1`,
+    [SHOPEE_SLUG],
+  )
+  const row = rows[0]
+  if (!row?.id) throw new Error("operação shopee não encontrada")
+  const next = { ...(row.config ?? {}), [key]: value }
+  await query(`update operacao set config = $1::jsonb where id::text = $2`, [
+    JSON.stringify(next),
+    row.id,
+  ])
 }

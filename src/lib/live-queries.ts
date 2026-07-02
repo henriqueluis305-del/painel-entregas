@@ -1,7 +1,6 @@
 import "server-only"
 
-import { withPgClient } from "@painel/db"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query, withPgClient } from "@painel/db"
 import type { Profile } from "@/lib/auth"
 
 export type OpLite = { id: string; slug: string; label: string }
@@ -10,13 +9,9 @@ export type OpLite = { id: string; slug: string; label: string }
 export async function getAllowedOperacoes(
   profile: Profile,
 ): Promise<{ operacoes: OpLite[]; defaultId: string | null }> {
-  const sb = createAdminClient()
-  const { data } = await sb
-    .from("operacao")
-    .select("id, slug, label, in_sidebar")
-    .eq("active", true)
-    .order("label")
-  const all = (data ?? []) as (OpLite & { in_sidebar: boolean })[]
+  const all = await query<OpLite & { in_sidebar: boolean }>(
+    `select id, slug, label, in_sidebar from operacao where active order by label`,
+  )
 
   // mesmo filtro da sidebar: escopo + (override do user OU padrão in_sidebar)
   const canAll = profile.is_admin || profile.base_scope === "ALL"
@@ -41,28 +36,29 @@ export type BaseLite = { slug: string; label: string }
 
 /** Bases ativas da operação (os "datasets"). */
 export async function getOpBases(operacaoId: string): Promise<BaseLite[]> {
-  const sb = createAdminClient()
-  const { data } = await sb
-    .from("base")
-    .select("slug, label")
-    .eq("operacao_id", operacaoId)
-    .eq("active", true)
-    .order("slug")
-  return (data ?? []) as BaseLite[]
+  return query<BaseLite>(
+    `select slug, label from base where operacao_id::text = $1 and active order by slug`,
+    [operacaoId],
+  )
 }
 
 /** Dias com dados, mais recente primeiro. baseSlug vazio = todas as bases. */
 export async function getAvailableDays(operacaoId: string, baseSlug = ""): Promise<string[]> {
-  const sb = createAdminClient()
-  const q = (t: string) => {
-    let x = sb.from(t).select("data_pt_br, base!inner(operacao_id, slug)").eq("base.operacao_id", operacaoId)
-    if (baseSlug) x = x.eq("base.slug", baseSlug)
-    return x
-  }
-  const [{ data: ds }, { data: sla }] = await Promise.all([q("shopee_ds_driver"), q("shopee_sla_record")])
-  const set = new Set<string>()
-  for (const r of [...(ds ?? []), ...(sla ?? [])] as { data_pt_br: string }[]) set.add(r.data_pt_br)
-  return [...set].sort((a, b) => parseBrDate(b) - parseBrDate(a))
+  const baseFilter = baseSlug ? "and b.slug = $2" : ""
+  const params = baseSlug ? [operacaoId, baseSlug] : [operacaoId]
+  const rows = await query<{ data_pt_br: string }>(
+    `select distinct t.data_pt_br from (
+       select d.data_pt_br from shopee_ds_driver d
+         join base b on b.id = d.base_id
+        where b.operacao_id::text = $1 ${baseFilter}
+       union all
+       select s.data_pt_br from shopee_sla_record s
+         join base b on b.id = s.base_id
+        where b.operacao_id::text = $1 ${baseFilter}
+     ) t`,
+    params,
+  )
+  return rows.map((r) => r.data_pt_br).sort((a, b) => parseBrDate(b) - parseBrDate(a))
 }
 
 export type SlaDay = {
@@ -74,25 +70,21 @@ export type SlaDay = {
   pct: number
 }
 export async function getSlaDay(operacaoId: string, dia: string, baseSlug = ""): Promise<SlaDay> {
-  const sb = createAdminClient()
-  let q = sb
-    .from("shopee_sla_record")
-    .select("total, entregues, ocorrencias, faltantes, outros, base!inner(operacao_id, slug)")
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", dia)
-  if (baseSlug) q = q.eq("base.slug", baseSlug)
-  const { data } = await q
-  const agg = (data ?? []).reduce(
-    (a, r) => ({
-      total: a.total + r.total,
-      entregues: a.entregues + r.entregues,
-      ocorrencias: a.ocorrencias + r.ocorrencias,
-      faltantes: a.faltantes + r.faltantes,
-      outros: a.outros + r.outros,
-    }),
-    { total: 0, entregues: 0, ocorrencias: 0, faltantes: 0, outros: 0 },
+  const baseFilter = baseSlug ? "and b.slug = $3" : ""
+  const params = baseSlug ? [operacaoId, dia, baseSlug] : [operacaoId, dia]
+  const [agg] = await query<Omit<SlaDay, "pct">>(
+    `select coalesce(sum(r.total),0)::int       as total,
+            coalesce(sum(r.entregues),0)::int   as entregues,
+            coalesce(sum(r.ocorrencias),0)::int as ocorrencias,
+            coalesce(sum(r.faltantes),0)::int   as faltantes,
+            coalesce(sum(r.outros),0)::int      as outros
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 and r.data_pt_br = $2 ${baseFilter}`,
+    params,
   )
-  return { ...agg, pct: agg.total ? Number(((agg.entregues / agg.total) * 100).toFixed(1)) : 0 }
+  const a = agg ?? { total: 0, entregues: 0, ocorrencias: 0, faltantes: 0, outros: 0 }
+  return { ...a, pct: a.total ? Number(((a.entregues / a.total) * 100).toFixed(1)) : 0 }
 }
 
 export type DsDay = {
@@ -112,15 +104,27 @@ type DsRowRaw = {
   driver: { name: string } | null
 }
 async function fetchDs(operacaoId: string, dia: string, baseSlug = ""): Promise<DsRowRaw[]> {
-  const sb = createAdminClient()
-  let q = sb
-    .from("shopee_ds_driver")
-    .select("saiu, entregues, em_rota, ocorrencias, driver_id, base!inner(operacao_id, slug), driver(name)")
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", dia)
-  if (baseSlug) q = q.eq("base.slug", baseSlug)
-  const { data } = await q
-  return (data ?? []) as unknown as DsRowRaw[]
+  const baseFilter = baseSlug ? "and b.slug = $3" : ""
+  const params = baseSlug ? [operacaoId, dia, baseSlug] : [operacaoId, dia]
+  const rows = await query<{
+    saiu: number
+    entregues: number
+    em_rota: number
+    ocorrencias: number
+    driver_id: string | null
+    driver_name: string | null
+  }>(
+    `select d.saiu, d.entregues, d.em_rota, d.ocorrencias, d.driver_id, dr.name as driver_name
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+       left join driver dr on dr.id = d.driver_id
+      where b.operacao_id::text = $1 and d.data_pt_br = $2 ${baseFilter}`,
+    params,
+  )
+  return rows.map(({ driver_name, ...r }) => ({
+    ...r,
+    driver: driver_name ? { name: driver_name } : null,
+  }))
 }
 
 export async function getDsDay(operacaoId: string, dia: string, baseSlug = ""): Promise<DsDay> {

@@ -2,8 +2,7 @@
 
 import { getSessionProfile } from "@/lib/auth"
 import { getAllowedOperacoes } from "@/lib/live-queries"
-import { withPgClient } from "@painel/db"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query, withPgClient } from "@painel/db"
 
 const DAY_MS = 86400000
 const PERIODS = [7, 14, 30, 60, 90] as const
@@ -126,20 +125,30 @@ export async function getDriverPerformance({
   }
 
   const periodDays = normalizePeriod(dias)
-  const sb = createAdminClient()
-
-  let query = sb
-    .from("shopee_ds_driver")
-    .select("data_pt_br, saiu, entregues, ocorrencias, driver(name), base!inner(operacao_id, slug)")
-    .in("base.operacao_id", requestedIds)
-    .eq("driver_id", driverId)
 
   const requestedBaseSlugs = [...new Set([...(baseSlugs ?? []), ...(baseSlug ? [baseSlug] : [])])]
-  if (requestedBaseSlugs.length === 1) query = query.eq("base.slug", requestedBaseSlugs[0])
-  if (requestedBaseSlugs.length > 1) query = query.in("base.slug", requestedBaseSlugs)
-
-  const { data } = await query
-  const rows = (data ?? []) as unknown as Row[]
+  const baseFilter = requestedBaseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = requestedBaseSlugs.length
+    ? [driverId, requestedIds, requestedBaseSlugs]
+    : [driverId, requestedIds]
+  const raw = await query<{
+    data_pt_br: string
+    saiu: number
+    entregues: number
+    ocorrencias: number
+    driver_name: string | null
+  }>(
+    `select d.data_pt_br, d.saiu, d.entregues, d.ocorrencias, dr.name as driver_name
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+       left join driver dr on dr.id = d.driver_id
+      where d.driver_id = $1 and b.operacao_id::text = any($2::text[]) ${baseFilter}`,
+    params,
+  )
+  const rows: Row[] = raw.map(({ driver_name, ...r }) => ({
+    ...r,
+    driver: driver_name ? { name: driver_name } : null,
+  }))
   const name = rows[0]?.driver?.name ?? driverId
   const fallbackRef = rows.reduce(
     (max, r) => Math.max(max, parseBrDate(r.data_pt_br)),

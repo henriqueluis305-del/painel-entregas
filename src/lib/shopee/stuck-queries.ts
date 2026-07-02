@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query } from "@painel/db"
 import { lookupCeps } from "@/lib/cep"
 import { FORA_DE_ABRANGENCIA } from "@/lib/shopee/stuck"
 import type { CheckpointPoint, StuckRow } from "@/lib/shopee/stuck"
@@ -9,7 +9,7 @@ import type { CheckpointPoint, StuckRow } from "@/lib/shopee/stuck"
 export type { CheckpointPoint, StuckKpis, StuckRow } from "@/lib/shopee/stuck"
 export { computeStuckKpis, isPackageDelivered } from "@/lib/shopee/stuck"
 
-type EmbeddedRow = {
+type RawStuckRow = {
   codigo: string
   status: string
   dias_preso: number | null
@@ -17,24 +17,24 @@ type EmbeddedRow = {
   cep: string | null
   delivered_at: string | null
   last_status_at: string | null
-  base: { slug: string; label: string; operacao_id: string } | null
-  driver: { id: string; name: string } | null
+  base_slug: string
+  base_label: string
+  driver_id: string | null
+  driver_name: string | null
 }
 
 /** Maior `last_backlog_date` da operação (o "dia atual" da visão). */
-async function latestBacklogDate(
-  sb: ReturnType<typeof createAdminClient>,
-  operacaoId: string,
-): Promise<string | null> {
-  const { data } = await sb
-    .from("shopee_package")
-    .select("last_backlog_date, base!inner(operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .not("last_backlog_date", "is", null)
-    .order("last_backlog_date", { ascending: false })
-    .limit(1)
-  const row = (data ?? [])[0] as { last_backlog_date: string } | undefined
-  return row?.last_backlog_date ?? null
+async function latestBacklogDate(operacaoId: string): Promise<string | null> {
+  const rows = await query<{ day: string }>(
+    `select p.last_backlog_date::text as day
+       from shopee_package p
+       join base b on b.id = p.base_id
+      where b.operacao_id::text = $1 and p.last_backlog_date is not null
+      order by p.last_backlog_date desc
+      limit 1`,
+    [operacaoId],
+  )
+  return rows[0]?.day ?? null
 }
 
 /**
@@ -44,30 +44,20 @@ async function latestBacklogDate(
  * está aqui (base sem nada ligado, inclusive) é tratada como fora de abrangência.
  */
 async function cidadesHabilitadas(
-  sb: ReturnType<typeof createAdminClient>,
   operacaoId: string,
   baseSlugs: string[],
 ): Promise<Set<string>> {
+  const baseFilter = baseSlugs.length ? "and b.slug = any($2::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, baseSlugs] : [operacaoId]
+  const rows = await query<{ slug: string; cidade: string }>(
+    `select b.slug, sc.cidade
+       from shopee_base_cidade sc
+       join base b on b.id = sc.base_id
+      where b.operacao_id::text = $1 and sc.enabled ${baseFilter}`,
+    params,
+  )
   const set = new Set<string>()
-  const PAGE = 1000
-  type Row = { cidade: string; enabled: boolean; base: { slug: string } | null }
-  for (let from = 0; ; from += PAGE) {
-    let q = sb
-      .from("shopee_base_cidade")
-      .select("cidade, enabled, base!inner(slug, operacao_id)")
-      .eq("base.operacao_id", operacaoId)
-      .order("id") // ordem única (PK) p/ paginação sem pulos
-      .range(from, from + PAGE - 1)
-    if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-    const { data, error } = await q
-    if (error) throw new Error(`cidadesHabilitadas: ${error.message}`)
-    const batch = (data ?? []) as unknown as Row[]
-    for (const r of batch) {
-      const slug = r.base?.slug ?? ""
-      if (slug && r.enabled && r.cidade) set.add(`${slug}|${r.cidade}`)
-    }
-    if (batch.length < PAGE) break
-  }
+  for (const r of rows) if (r.slug && r.cidade) set.add(`${r.slug}|${r.cidade}`)
   return set
 }
 
@@ -77,50 +67,41 @@ export async function getStuckPackages(
   baseSlugs: string[] = [],
   opts: { dailyReset?: boolean } = {},
 ): Promise<StuckRow[]> {
-  const sb = createAdminClient()
   // limpeza diária: mostra só o backlog do dia mais recente (DB intacto)
-  const day = opts.dailyReset ? await latestBacklogDate(sb, operacaoId) : null
-  const SELECT =
-    "codigo, status, dias_preso, agency, cep, delivered_at, last_status_at, base!inner(slug, label, operacao_id), driver(id, name)"
+  const day = opts.dailyReset ? await latestBacklogDate(operacaoId) : null
 
-  // builder reutilizável (mesmos filtros p/ contagem e p/ as páginas)
-  const build = (head: boolean) => {
-    let q = head
-      ? sb.from("shopee_package").select(SELECT, { count: "exact", head: true })
-      : sb.from("shopee_package").select(SELECT)
-    q = q.eq("base.operacao_id", operacaoId)
-    if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-    if (day) q = q.eq("last_backlog_date", day)
-    return q
+  // SQL direto não tem o limite de 1000 linhas do PostgREST — uma query resolve.
+  const params: unknown[] = [operacaoId]
+  let baseFilter = ""
+  if (baseSlugs.length) {
+    params.push(baseSlugs)
+    baseFilter = `and b.slug = any($${params.length}::text[])`
   }
-
-  // 1 contagem + N páginas EM PARALELO (PostgREST limita ~1000/req).
-  const { count, error: cErr } = await build(true)
-  if (cErr) throw new Error(`getStuckPackages(count): ${cErr.message}`)
-  const total = count ?? 0
-  const PAGE = 1000
-  const pages = Math.ceil(total / PAGE)
-  const results = await Promise.all(
-    Array.from({ length: pages }, (_, i) =>
-      build(false)
-        .order("dias_preso", { ascending: false, nullsFirst: false })
-        .order("codigo")
-        .range(i * PAGE, i * PAGE + PAGE - 1),
-    ),
+  let dayFilter = ""
+  if (day) {
+    params.push(day)
+    dayFilter = `and p.last_backlog_date = $${params.length}::date`
+  }
+  const all = await query<RawStuckRow>(
+    `select p.codigo, p.status, p.dias_preso::float8 as dias_preso, p.agency, p.cep,
+            p.delivered_at::text as delivered_at, p.last_status_at::text as last_status_at,
+            b.slug as base_slug, b.label as base_label,
+            dr.id::text as driver_id, dr.name as driver_name
+       from shopee_package p
+       join base b on b.id = p.base_id
+       left join driver dr on dr.id = p.driver_id
+      where b.operacao_id::text = $1 ${baseFilter} ${dayFilter}
+      order by p.dias_preso desc nulls last, p.codigo`,
+    params,
   )
-  const all: EmbeddedRow[] = []
-  for (const r of results) {
-    if (r.error) throw new Error(`getStuckPackages: ${r.error.message}`)
-    all.push(...((r.data ?? []) as unknown as EmbeddedRow[]))
-  }
 
   // Resolve cidade a partir do CEP (cache cep_cache + ViaCEP nos que faltam).
   const cidadePorCep = await lookupCeps(all.map((r) => r.cep ?? ""))
   // Cidades habilitadas no Config p/ separar "da base" x "fora de abrangência".
-  const habilitadas = await cidadesHabilitadas(sb, operacaoId, baseSlugs)
+  const habilitadas = await cidadesHabilitadas(operacaoId, baseSlugs)
 
   return all.map((r) => {
-    const slug = r.base?.slug ?? ""
+    const slug = r.base_slug ?? ""
     const cepCidade = (r.cep && cidadePorCep.get(r.cep)?.cidade) || null
     const cepBairro = (r.cep && cidadePorCep.get(r.cep)?.bairro) || null
     // Só a cidade habilitada no Config mantém nome próprio (e bairro). Todo o
@@ -135,9 +116,9 @@ export async function getStuckPackages(
       delivered_at: r.delivered_at,
       last_status_at: r.last_status_at,
       base_slug: slug,
-      base_label: r.base?.label ?? "",
-      driver_id: r.driver?.id ?? null,
-      driver_name: r.driver?.name ?? null,
+      base_label: r.base_label ?? "",
+      driver_id: r.driver_id,
+      driver_name: r.driver_name,
       cep: r.cep ?? null,
       cidade: daBase ? cepCidade : FORA_DE_ABRANGENCIA,
       bairro: daBase ? cepBairro : FORA_DE_ABRANGENCIA,
@@ -145,13 +126,12 @@ export async function getStuckPackages(
   })
 }
 
-type EmbeddedCheckpoint = {
+type RawCheckpoint = {
   seq: number
   label: string
   total: number
   ainda_stuck: number
   resolvidos: number
-  base: { slug: string; operacao_id: string } | null
 }
 
 /** Série de burn-down: % ainda stuck por checkpoint (upload), agregado nas bases. */
@@ -159,30 +139,32 @@ export async function getStuckCheckpoints(
   operacaoId: string,
   baseSlugs: string[] = [],
 ): Promise<CheckpointPoint[]> {
-  const sb = createAdminClient()
   // burn-down é do DIA mais recente (senão a semana toda se mistura)
-  const { data: last } = await sb
-    .from("shopee_stuck_checkpoint")
-    .select("data_pt_br, base!inner(operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .order("ts", { ascending: false })
-    .limit(1)
-  const day = (last ?? [])[0]?.data_pt_br as string | undefined
+  const last = await query<{ data_pt_br: string }>(
+    `select c.data_pt_br
+       from shopee_stuck_checkpoint c
+       join base b on b.id = c.base_id
+      where b.operacao_id::text = $1
+      order by c.ts desc
+      limit 1`,
+    [operacaoId],
+  )
+  const day = last[0]?.data_pt_br
   if (!day) return []
 
-  let q = sb
-    .from("shopee_stuck_checkpoint")
-    .select("seq, label, total, ainda_stuck, resolvidos, base!inner(slug, operacao_id)")
-    .eq("base.operacao_id", operacaoId)
-    .eq("data_pt_br", day)
-    .order("seq")
-  if (baseSlugs.length) q = q.in("base.slug", baseSlugs)
-
-  const { data, error } = await q
-  if (error) throw new Error(`getStuckCheckpoints: ${error.message}`)
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  const data = await query<RawCheckpoint>(
+    `select c.seq, c.label, c.total, c.ainda_stuck, c.resolvidos
+       from shopee_stuck_checkpoint c
+       join base b on b.id = c.base_id
+      where b.operacao_id::text = $1 and c.data_pt_br = $2 ${baseFilter}
+      order by c.seq`,
+    params,
+  )
 
   const map = new Map<number, { label: string; total: number; ainda: number; resolv: number }>()
-  for (const r of (data ?? []) as unknown as EmbeddedCheckpoint[]) {
+  for (const r of data) {
     const m = map.get(r.seq) ?? { label: r.label, total: 0, ainda: 0, resolv: 0 }
     m.total += r.total
     m.ainda += r.ainda_stuck

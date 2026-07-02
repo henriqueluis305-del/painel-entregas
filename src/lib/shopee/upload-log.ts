@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { query } from "@painel/db"
 
 export type UploadLogRow = {
   id: number
@@ -25,11 +25,12 @@ export function uploadKindLabel(kind: string): string {
 }
 
 export async function getUploadLog(limit = 20): Promise<UploadLogRow[]> {
-  const sb = createAdminClient()
-  const { data } = await sb
-    .from("shopee_upload_log")
-    .select("id, user_email, kind, filenames, rows, summary, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit)
-  return (data ?? []) as UploadLogRow[]
+  // id é bigserial (pg devolve int8 como string) → ::int; created_at ::text p/ manter string
+  return query<UploadLogRow>(
+    `select id::int as id, user_email, kind, filenames, rows, summary, created_at::text as created_at
+       from shopee_upload_log
+      order by created_at desc
+      limit $1`,
+    [limit],
+  )
 }

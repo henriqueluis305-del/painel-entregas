@@ -1,7 +1,30 @@
 # Plano de Migração para AWS — Painel de Entregas
 
-**Versão 1.0 — Julho de 2026**
+**Versão 1.1 — Julho de 2026**
 Base técnica: `arquitetura_dashboards.md` (v2.0) + auditoria real do código em `feat/painel-live`.
+
+> **STATUS DE EXECUÇÃO (branch `feat/aws-migration`)** — já implementado e testado:
+>
+> | Fase | Status | Observações |
+> |---|---|---|
+> | 0a Pool singleton (`packages/db`) | ✅ | `withPgClient` agora empresta do pool; `query`/`tx` novos |
+> | 0b SQL puro (sai supabase-js) | ✅ | 12 arquivos convertidos; zero PostgREST no caminho de dados |
+> | 0c Provider de sessão (`packages/auth`) | ✅ | `AUTH_MODE=supabase\|cognito\|cognito-local\|mock`; login/logout viraram server actions |
+> | Migrations versionadas | ✅ | `scripts/migrate.mjs` + baseline real (pg_dump do Supabase); testado em Postgres virgem |
+> | 1 Cognito | ✅ código | Provider completo (USER_PASSWORD_AUTH, refresh no middleware, admin API). Login E2E validado no **cognito-local**; falta só validar no Cognito real (precisa conta AWS) |
+> | 3 S3/storage (`packages/storage`) | ✅ parcial | Presigned + arquivamento dos originais no upload; worker (`apps/worker`) processa `processing_jobs`. **Parse ainda síncrono no web** (ver desvio abaixo) |
+> | 4a Clone local dev | ✅ testado | `infra/docker-compose.dev.yml` (Postgres 5433 + MinIO + cognito-local) + `seed:auth` + smoke `test:e2e-local` PASSOU |
+> | 4b Docker/Caddy prod | ✅ código | `Dockerfile` (standalone), worker, `infra/docker-compose.yml`, `Caddyfile`, `deploy.sh`, `fetch-env.sh` |
+> | 4c Terraform | ✅ código | VPC, RDS+KMS, S3, Cognito, EC2+EIP, IAM mínimo, ECR, SSM — falta `terraform apply` (precisa conta) |
+> | 5 CI/CD | ✅ código | `ci.yml` (tsc/lint/build) + `deploy.yml` (ECR+SSM) — faltam secrets no GitHub |
+> | 2 Migrar dados → RDS | ⏸ aguarda RDS | Baseline pronta; cutover = §5.3 |
+> | 9 Financeiro | ⏸ | nasce sobre `packages/` |
+>
+> **Desvios conscientes do plano original:**
+> 1. **Monorepo "lógico" por enquanto**: `packages/{db,auth,storage}` e `apps/worker` são pastas TS com path alias (`@painel/*` no tsconfig), não npm workspaces — zero atrito com o build atual. A cisão física em workspaces acontece quando `apps/financeiro` nascer (§2).
+> 2. **Upload continua síncrono** no Server Action (volume atual é leve — o próprio doc AD-06 tolera); o que mudou: original vai pro bucket (`shopee_upload_log.s3_keys`) e a fila `processing_jobs`+worker já existem — migrar um `kind` pro assíncrono é registrar o handler no worker.
+> 3. **Porta 5433** no Postgres do clone local (5432 conflita com Postgres nativo do Windows).
+> 4. **Caddy direto, sem CloudFront** (recomendação §7.3 adotada como default).
 
 > Este documento parte do **estado real do repositório** (não do ideal do doc de arquitetura) e traça o caminho concreto para deixar **tudo compatível com AWS**: Cognito (auth), RDS PostgreSQL (banco), S3 (arquivos) e EC2 + Docker Compose (runtime). Decisões travadas com o time: **Auth → Cognito**, **Banco → RDS**, motivação = **plataforma única + dashboard financeiro ainda a construir**.
 

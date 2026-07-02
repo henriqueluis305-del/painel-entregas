@@ -177,6 +177,65 @@ function parseBrDate(s: string): number {
   return new Date(y, (m ?? 1) - 1, d ?? 1).getTime()
 }
 
+export type SlaWeekEntry = { baseSlug: string; day: string; pct: number }
+
+/** SLA% por base/dia dentro de um conjunto de dias (ISO) — célula do pivô Base × Data. */
+export async function getSlaWeekEntries(
+  operacaoId: string,
+  baseSlugs: string[],
+  isoDays: string[],
+): Promise<SlaWeekEntry[]> {
+  if (!isoDays.length) return []
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, isoDays, baseSlugs] : [operacaoId, isoDays]
+  const rows = await query<{ base_slug: string; data_pt_br: string; total: number; entregues: number }>(
+    `select b.slug as base_slug, r.data_pt_br, r.total, r.entregues
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 and r.data = any($2::date[]) ${baseFilter}`,
+    params,
+  )
+  return rows.map((r) => ({ baseSlug: r.base_slug, day: r.data_pt_br, pct: pct(r.entregues, r.total) }))
+}
+
+export type SlaWeeklyEntry = { baseSlug: string; weekStart: string; pct: number }
+
+/** SLA% por base/semana (soma os dias de cada semana) — célula do pivô Base × Semana (Mensal). */
+export async function getSlaWeeklyPct(
+  operacaoId: string,
+  baseSlugs: string[],
+  weekStarts: string[],
+): Promise<SlaWeeklyEntry[]> {
+  if (!weekStarts.length) return []
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, weekStarts, baseSlugs] : [operacaoId, weekStarts]
+  const rows = await query<{ base_slug: string; week_start: string; total: number; entregues: number }>(
+    `select b.slug as base_slug, to_char(date_trunc('week', r.data), 'YYYY-MM-DD') as week_start,
+            sum(r.total)::int as total, sum(r.entregues)::int as entregues
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 and date_trunc('week', r.data) = any($2::date[]) ${baseFilter}
+      group by b.slug, week_start`,
+    params,
+  )
+  return rows.map((r) => ({ baseSlug: r.base_slug, weekStart: r.week_start, pct: pct(r.entregues, r.total) }))
+}
+
+/** Semanas (segunda-feira ISO) com pelo menos 1 registro de SLA no escopo, mais recente primeiro. */
+export async function getSlaWeeks(operacaoId: string, baseSlugs: string[] = []): Promise<string[]> {
+  const baseFilter = baseSlugs.length ? "and b.slug = any($2::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, baseSlugs] : [operacaoId]
+  const rows = await query<{ week_start: string }>(
+    `select distinct to_char(date_trunc('week', r.data), 'YYYY-MM-DD') as week_start
+       from shopee_sla_record r
+       join base b on b.id = r.base_id
+      where b.operacao_id::text = $1 ${baseFilter}
+      order by 1 desc`,
+    params,
+  )
+  return rows.map((r) => r.week_start)
+}
+
 /** Evolução do SLA% por dia (snapshots), agregado nas bases selecionadas. */
 export async function getSlaEvolution(
   operacaoId: string,

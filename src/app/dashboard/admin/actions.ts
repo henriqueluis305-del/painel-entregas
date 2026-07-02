@@ -156,6 +156,7 @@ async function applyUserUpdate(
         cargo.trim() || null,
         email.trim(),
         role,
+        base_scope,
         base_scope === "SINGLE" ? operacao_id : null,
         is_admin,
         sidebar_operacoes,

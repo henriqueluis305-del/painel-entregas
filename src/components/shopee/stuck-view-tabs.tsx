@@ -26,7 +26,7 @@ export type StuckDrill = {
   mode: StuckDim
   key: string | null // null = todas as linhas (ex.: clicou no total da coluna)
   range: StuckRange | null // null = todas as faixas (ex.: clicou no total da linha)
-  scope?: StuckScope // recorte herdado do pivô (ex.: dentro de uma cidade)
+  scope?: StuckScope[] // recortes herdados do pivô (cadeia base → cidade → …)
 }
 
 // Rótulos por dimensão (label do botão, cabeçalho da coluna e texto do drill).
@@ -60,7 +60,9 @@ const DIM_SINGULAR: Record<StuckDim, string> = {
 function drillLabel(d: StuckDrill): string {
   const linha = d.key ?? DIM_ALL[d.mode]
   const faixa = d.range ? `range ${d.range}` : "todas as faixas"
-  const recorte = d.scope ? `${DIM_SINGULAR[d.scope.dim]} ${d.scope.value} · ` : ""
+  const recorte = d.scope?.length
+    ? d.scope.map((s) => `${DIM_SINGULAR[s.dim]} ${s.value}`).join(" · ") + " · "
+    : ""
   return `${recorte}${linha} · ${faixa}`
 }
 
@@ -68,7 +70,7 @@ export function StuckViewTabs({ rows }: { rows: StuckRow[] }) {
   const [tab, setTab] = useState("por-base")
   const [drill, setDrill] = useState<StuckDrill | null>(null)
   const [dimOverride, setDimOverride] = useState<StuckDim | null>(null)
-  const [scope, setScope] = useState<StuckScope | null>(null)
+  const [scopeStack, setScopeStack] = useState<StuckScope[]>([])
   const [compareMenuOpen, setCompareMenuOpen] = useState(true)
 
   // Base única filtrada → visão padrão por status. Senão → por base.
@@ -88,31 +90,46 @@ export function StuckViewTabs({ rows }: { rows: StuckRow[] }) {
   const autoDim: StuckDim = singleBase ? "status" : "base"
   const dim = dimOverride && dimOptions.includes(dimOverride) ? dimOverride : autoDim
 
-  // Linhas do pivô, recortadas pela cidade/bairro escolhido (quando há escopo).
+  // Linhas do pivô, recortadas pela cadeia de escopos (ex.: base → cidade).
   const pivotRows = useMemo(
-    () => (scope ? rows.filter((r) => stuckDimValue(r, scope.dim) === scope.value) : rows),
-    [rows, scope],
+    () =>
+      scopeStack.length
+        ? rows.filter((r) => scopeStack.every((s) => stuckDimValue(r, s.dim) === s.value))
+        : rows,
+    [rows, scopeStack],
   )
 
-  // Clique no nome de uma cidade/bairro → re-tabula por status, recortado nela.
+  // Recorte atual é uma base (dim = cidade)? → mostramos também o status daquela
+  // base numa segunda tabela, logo abaixo das cidades.
+  const scopedBase =
+    scopeStack.length > 0 && scopeStack[scopeStack.length - 1].dim === "base"
+      ? scopeStack[scopeStack.length - 1]
+      : null
+
+  // Clique no nome de uma linha → aprofunda a visão, recortando por aquele valor:
+  // base → cidades daquela base; cidade/bairro → status daquele recorte.
   function handleRowClick(key: string) {
-    setScope({ dim, value: key })
-    setDimOverride("status")
+    const nextDim: StuckDim = dim === "base" ? "cidade" : "status"
+    setScopeStack((prev) => [...prev, { dim, value: key }])
+    setDimOverride(nextDim)
   }
 
-  function clearScope() {
-    if (scope) setDimOverride(scope.dim)
-    setScope(null)
+  // "Voltar" desfaz um nível do recorte, retornando ao pivô daquela dimensão.
+  function popScope() {
+    const last = scopeStack[scopeStack.length - 1]
+    if (!last) return
+    setDimOverride(last.dim)
+    setScopeStack((prev) => prev.slice(0, -1))
   }
 
   function pickDimension(d: StuckDim) {
-    setScope(null)
+    setScopeStack([])
     setDimOverride(d)
     setTab("por-base")
   }
 
   function handleCellClick(d: StuckDrill) {
-    setDrill(scope ? { ...d, scope } : d)
+    setDrill(scopeStack.length ? { ...d, scope: scopeStack } : d)
     setTab("detalhe")
   }
 
@@ -124,7 +141,7 @@ export function StuckViewTabs({ rows }: { rows: StuckRow[] }) {
       if (!rg) return false
       if (drill.range && rg !== drill.range) return false
       if (drill.key != null && stuckDimValue(r, drill.mode) !== drill.key) return false
-      if (drill.scope && stuckDimValue(r, drill.scope.dim) !== drill.scope.value) return false
+      if (drill.scope && !drill.scope.every((s) => stuckDimValue(r, s.dim) === s.value)) return false
       return true
     })
   }, [rows, drill])
@@ -168,23 +185,42 @@ export function StuckViewTabs({ rows }: { rows: StuckRow[] }) {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="por-base">
-        {scope && (
-          <div className="bg-muted/50 mb-3 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-            <span className="text-muted-foreground">{DIM_SINGULAR[scope.dim]}:</span>
-            <span className="font-medium">{scope.value}</span>
-            <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1 px-2" onClick={clearScope}>
+        {scopeStack.length > 0 && (
+          <div className="bg-muted/50 mb-3 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
+            {scopeStack.map((s, i) => (
+              <span key={`${s.dim}-${s.value}`} className="flex items-center gap-2">
+                {i > 0 && <span className="text-muted-foreground">›</span>}
+                <span className="text-muted-foreground">{DIM_SINGULAR[s.dim]}:</span>
+                <span className="font-medium">{s.value}</span>
+              </span>
+            ))}
+            <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1 px-2" onClick={popScope}>
               <XIcon className="size-3.5" />
               Voltar
             </Button>
           </div>
+        )}
+        {scopedBase && (
+          <div className="text-muted-foreground mb-2 text-sm font-medium">Por cidade</div>
         )}
         <StuckRangeTable
           rows={pivotRows}
           dimension={dim}
           rowKeyLabel={DIM_HEAD[dim]}
           onCellClick={handleCellClick}
-          onRowClick={dim === "cidade" || dim === "bairro" ? handleRowClick : undefined}
+          onRowClick={dim === "status" ? undefined : handleRowClick}
         />
+        {scopedBase && (
+          <div className="mt-6">
+            <div className="text-muted-foreground mb-2 text-sm font-medium">Por status</div>
+            <StuckRangeTable
+              rows={pivotRows}
+              dimension="status"
+              rowKeyLabel={DIM_HEAD.status}
+              onCellClick={handleCellClick}
+            />
+          </div>
+        )}
       </TabsContent>
       <TabsContent value="detalhe">
         {drill && (

@@ -19,6 +19,7 @@ export const SHOPEE_TABS: ShopeeTab[] = [
   { slug: "ds", label: "DS" },
   { slug: "stuck", label: "Stuck" },
   { slug: "pnr", label: "PNR" },
+  { slug: "resultados", label: "Resultados" },
   {
     slug: "monitoramento",
     label: "Monitoramento",

@@ -13,17 +13,35 @@ arquitetura: `docs/PLANO-MIGRACAO-AWS.md` (§8.5).
 
 ## Subir (primeira vez)
 
+Pré-requisitos: **Docker Desktop** rodando e **Node**. Sem `node_modules` o passo 2
+falha com `Cannot find package 'pg'` — por isso o `npm install` vem primeiro.
+
 ```bash
+# 0. dependências (na primeira vez / após mudar package.json)
+npm install
+
 # 1. infra em containers (Postgres + MinIO + cognito-local)
 npm run dev:infra
 
 # 2. schema no Postgres local (mesmas migrations de prod)
+#    o inline força o banco LOCAL mesmo que o .env.local aponte pro Supabase de prod
 DATABASE_URL=postgresql://postgres:dev@localhost:5433/painel PG_SSL=off npm run migrate
 
 # 3. User Pool + admin de teste no cognito-local (grava os IDs no .env.local)
 npm run seed:auth
 #    → admin@dev.local / admin12345
 ```
+
+> **Windows / PowerShell**: o inline `VAR=x npm run ...` (passo 2) é sintaxe de bash e
+> não roda no PowerShell. Use:
+> ```powershell
+> $env:DATABASE_URL="postgresql://postgres:dev@localhost:5433/painel"; $env:PG_SSL="off"; npm run migrate
+> ```
+> Ou deixe o `.env.local` no modo dev (`DATABASE_URL` local + `PG_SSL=off`) e rode
+> `npm run migrate` puro — o runner lê o `.env.local`.
+>
+> ⚠️ Se o `.env.local` estiver com o `DATABASE_URL` de **produção**, um `migrate` sem o
+> override roda as migrations **em produção**. Confira o destino antes.
 
 ## Rodar o app contra o clone
 
@@ -52,6 +70,9 @@ Pra voltar pro fluxo Supabase atual: `AUTH_MODE=supabase` + `DATABASE_URL` do
 Supabase (e remova/comente as vars de MinIO).
 
 ## Validar tudo de uma vez
+
+Com o `.env.local` no modo dev e o **worker rodando em outro terminal** (`npm run worker`)
+— o teste insere um job e espera o worker processar:
 
 ```bash
 npm run test:e2e-local

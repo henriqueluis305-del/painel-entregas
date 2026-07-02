@@ -10,11 +10,11 @@
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
     "migrate:baseline": "node scripts/migrate.mjs --baseline",
-    "worker": "tsx apps/worker/src/index.ts",
+    "worker": "tsx --env-file-if-exists=.env.local apps/worker/src/index.ts",
     "seed:auth": "node scripts/seed-auth.mjs",
     "dev:infra": "docker compose -f infra/docker-compose.dev.yml up -d",
     "dev:infra:down": "docker compose -f infra/docker-compose.dev.yml down",
-    "test:e2e-local": "tsx scripts/e2e-local.ts"
+    "test:e2e-local": "tsx --env-file-if-exists=.env.local scripts/e2e-local.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1078.0",

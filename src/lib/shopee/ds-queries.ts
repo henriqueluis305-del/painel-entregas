@@ -120,3 +120,110 @@ export async function getDsData(
     day,
   }
 }
+
+export type DsWeekEntry = { baseSlug: string; day: string; pct: number }
+
+/** DS% por base/dia dentro de um conjunto de dias (ISO) — célula do pivô Base × Data. */
+export async function getDsWeekEntries(
+  operacaoId: string,
+  baseSlugs: string[],
+  isoDays: string[],
+): Promise<DsWeekEntry[]> {
+  if (!isoDays.length) return []
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, isoDays, baseSlugs] : [operacaoId, isoDays]
+  const rows = await query<{ base_slug: string; data_pt_br: string; saiu: number; entregues: number }>(
+    `select b.slug as base_slug, d.data_pt_br, sum(d.saiu)::int as saiu, sum(d.entregues)::int as entregues
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 and d.data = any($2::date[]) ${baseFilter}
+      group by b.slug, d.data_pt_br`,
+    params,
+  )
+  return rows.map((r) => ({
+    baseSlug: r.base_slug,
+    day: r.data_pt_br,
+    pct: r.saiu ? Number(((r.entregues / r.saiu) * 100).toFixed(1)) : 0,
+  }))
+}
+
+export type DsWeeklyEntry = { baseSlug: string; weekStart: string; pct: number }
+
+/** DS% por base/semana (soma os dias de cada semana) — célula do pivô Base × Semana (Mensal). */
+export async function getDsWeeklyPct(
+  operacaoId: string,
+  baseSlugs: string[],
+  weekStarts: string[],
+): Promise<DsWeeklyEntry[]> {
+  if (!weekStarts.length) return []
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, weekStarts, baseSlugs] : [operacaoId, weekStarts]
+  const rows = await query<{ base_slug: string; week_start: string; saiu: number; entregues: number }>(
+    `select b.slug as base_slug, to_char(date_trunc('week', d.data), 'YYYY-MM-DD') as week_start,
+            sum(d.saiu)::int as saiu, sum(d.entregues)::int as entregues
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 and date_trunc('week', d.data) = any($2::date[]) ${baseFilter}
+      group by b.slug, week_start`,
+    params,
+  )
+  return rows.map((r) => ({
+    baseSlug: r.base_slug,
+    weekStart: r.week_start,
+    pct: r.saiu ? Number(((r.entregues / r.saiu) * 100).toFixed(1)) : 0,
+  }))
+}
+
+/** Semanas (segunda-feira ISO) com pelo menos 1 registro de DS no escopo, mais recente primeiro. */
+export async function getDsWeeks(operacaoId: string, baseSlugs: string[] = []): Promise<string[]> {
+  const baseFilter = baseSlugs.length ? "and b.slug = any($2::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, baseSlugs] : [operacaoId]
+  const rows = await query<{ week_start: string }>(
+    `select distinct to_char(date_trunc('week', d.data), 'YYYY-MM-DD') as week_start
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 ${baseFilter}
+      order by 1 desc`,
+    params,
+  )
+  return rows.map((r) => r.week_start)
+}
+
+/** Motoristas de um dia específico, ordenados por DS% crescente (piores primeiro). */
+export async function getDsDriversByDay(
+  operacaoId: string,
+  baseSlugs: string[] = [],
+  day: string,
+): Promise<DsRow[]> {
+  const baseFilter = baseSlugs.length ? "and b.slug = any($3::text[])" : ""
+  const params: unknown[] = baseSlugs.length ? [operacaoId, day, baseSlugs] : [operacaoId, day]
+  return query<DsRow>(
+    `select d.driver_id, d.driver_name, d.saiu, d.entregues, d.em_rota, d.ocorrencias,
+            d.is_demo, b.slug as base_slug, b.label as base_label
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 and d.data_pt_br = $2 ${baseFilter}
+      order by (case when d.saiu > 0 then d.entregues::float8 / d.saiu else 1 end) asc, d.saiu desc`,
+    params,
+  )
+}
+
+/** Motoristas de uma base numa semana inteira (soma os 7 dias) — consolidado da visão Mensal. */
+export async function getDsDriversByWeek(
+  operacaoId: string,
+  baseSlug: string,
+  weekStart: string,
+): Promise<DsRow[]> {
+  return query<DsRow>(
+    `select d.driver_id, max(d.driver_name) as driver_name,
+            sum(d.saiu)::int as saiu, sum(d.entregues)::int as entregues,
+            sum(d.em_rota)::int as em_rota, sum(d.ocorrencias)::int as ocorrencias,
+            bool_or(d.is_demo) as is_demo, b.slug as base_slug, b.label as base_label
+       from shopee_ds_driver d
+       join base b on b.id = d.base_id
+      where b.operacao_id::text = $1 and b.slug = $2 and date_trunc('week', d.data) = $3::date
+      group by d.driver_id, b.slug, b.label
+      order by (case when sum(d.saiu) > 0 then sum(d.entregues)::float8 / sum(d.saiu) else 1 end) asc`,
+    [operacaoId, baseSlug, weekStart],
+  )
+}

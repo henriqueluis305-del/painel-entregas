@@ -33,6 +33,14 @@ const poolId = () => process.env.COGNITO_USER_POOL_ID!
 const clientId = () => process.env.COGNITO_CLIENT_ID!
 const localEndpoint = () => process.env.COGNITO_ENDPOINT // só cognito-local
 
+// cognito-local emite o iss com o host de bind interno (0.0.0.0), não o endpoint
+// que usamos pra falar com ele (localhost). Aceitamos os dois.
+const localIssuers = () => {
+  const local = localEndpoint()!
+  const u = new URL(local)
+  return [`${local}/${poolId()}`, `${u.protocol}//0.0.0.0:${u.port}/${poolId()}`]
+}
+
 const g = globalThis as unknown as {
   __cognitoClient?: CognitoIdentityProviderClient
   __cognitoVerifier?: { verify(token: string): Promise<Record<string, unknown>> }
@@ -50,13 +58,9 @@ function verifier() {
   if (g.__cognitoVerifier) return g.__cognitoVerifier
   const local = localEndpoint()
   if (local) {
-    // cognito-local emite iss com o host de bind interno (0.0.0.0) — aceita ambos
-    const u = new URL(local)
     const jwksUri = `${local}/${poolId()}/.well-known/jwks.json`
     g.__cognitoVerifier = JwtVerifier.create(
-      [`${local}/${poolId()}`, `${u.protocol}//0.0.0.0:${u.port}/${poolId()}`].map(
-        (issuer) => ({ issuer, audience: clientId(), jwksUri }),
-      ),
+      localIssuers().map((issuer) => ({ issuer, audience: clientId(), jwksUri })),
     ) as unknown as { verify(token: string): Promise<Record<string, unknown>> }
   } else {
     g.__cognitoVerifier = CognitoJwtVerifier.create({
@@ -72,12 +76,16 @@ type IdClaims = { sub: string; email?: string }
 
 // O fetcher interno do aws-jwt-verify só aceita https; o cognito-local é http.
 // No modo local, buscamos o JWKS uma vez via fetch e pré-carregamos no verifier.
+// Como o verifier é multi-issuer, o cacheJwks EXIGE o issuer — cacheamos o mesmo
+// JWKS pros dois issuers aceitos (localhost e 0.0.0.0), senão o verify tenta
+// buscar o JWKS sozinho via https e quebra (loop de login).
 let localJwksLoaded = false
 async function ensureLocalJwks(v: ReturnType<typeof verifier>) {
   const local = localEndpoint()
   if (!local || localJwksLoaded) return
-  const res = await fetch(`${local}/${poolId()}/.well-known/jwks.json`)
-  ;(v as unknown as { cacheJwks(jwks: unknown): void }).cacheJwks(await res.json())
+  const jwks = await (await fetch(`${local}/${poolId()}/.well-known/jwks.json`)).json()
+  const cache = v as unknown as { cacheJwks(jwks: unknown, issuer: string): void }
+  for (const issuer of localIssuers()) cache.cacheJwks(jwks, issuer)
   localJwksLoaded = true
 }
 

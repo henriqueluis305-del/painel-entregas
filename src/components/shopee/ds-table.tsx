@@ -32,6 +32,7 @@ function dsPct(entregues: number, saiu: number) {
 
 type SortKey = "driver_name" | "saiu" | "entregues" | "em_rota" | "ocorrencias" | "ds"
 type Sort = { key: SortKey; dir: "asc" | "desc" }
+export type DsTableSort = Sort
 
 function val(r: DsRow, key: SortKey): string | number {
   switch (key) {
@@ -49,15 +50,18 @@ export function DsTable({
   operacaoId,
   baseSlugs = [],
   referenceDay,
+  initialSort,
 }: {
   rows: DsRow[]
   operacaoId: string
   baseSlugs?: string[]
   referenceDay: string
+  /** Sort inicial — default mantém o comportamento de sempre (entregues desc). */
+  initialSort?: DsTableSort
 }) {
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(0)
-  const [sort, setSort] = useState<Sort>({ key: "entregues", dir: "desc" })
+  const [sort, setSort] = useState<Sort>(initialSort ?? { key: "entregues", dir: "desc" })
 
   const { openDriver, dialogElement } = useDriverPerformanceDialog({
     operacaoId,

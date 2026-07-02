@@ -25,10 +25,35 @@ export function weekRange(iso: string): string {
   return `${fmt(start)} – ${fmt(end)}`
 }
 
+/** "2026-06-15" → "15/06/2026" (formato usado em data_pt_br). */
+export function isoToBr(iso: string): string {
+  const [y, m, d] = iso.split("-")
+  return `${d}/${m}/${y}`
+}
+
 /** Soma `days` a uma data "YYYY-MM-DD" (aritmética em UTC, sem DST). */
 export function addDaysIso(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d))
   dt.setUTCDate(dt.getUTCDate() + days)
   return dt.toISOString().slice(0, 10)
+}
+
+/**
+ * Segundas-feiras (ISO) cujo início cai dentro do mês "YYYY-MM" — no máximo 4
+ * (mês com 5 segundas descarta a mais antiga, pra sempre fechar em 4 colunas).
+ */
+export function mondaysInMonth(monthIso: string): string[] {
+  const [y, m] = monthIso.split("-").map(Number)
+  const first = new Date(Date.UTC(y, m - 1, 1))
+  const last = new Date(Date.UTC(y, m, 0)) // último dia do mês
+  const dow = first.getUTCDay() || 7 // segunda=1 .. domingo=7
+  const monday = new Date(first)
+  monday.setUTCDate(monday.getUTCDate() - (dow - 1))
+
+  const mondays: string[] = []
+  for (const d = new Date(monday); d <= last; d.setUTCDate(d.getUTCDate() + 7)) {
+    if (d >= first) mondays.push(d.toISOString().slice(0, 10))
+  }
+  return mondays.slice(-4)
 }

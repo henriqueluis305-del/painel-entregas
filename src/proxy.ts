@@ -1,9 +1,9 @@
 import { type NextRequest } from "next/server"
 
-import { updateSession } from "@/lib/supabase/middleware"
+import { authMiddleware } from "@painel/auth/middleware"
 
 export async function proxy(request: NextRequest) {
-  return await updateSession(request)
+  return await authMiddleware(request)
 }
 
 export const config = {

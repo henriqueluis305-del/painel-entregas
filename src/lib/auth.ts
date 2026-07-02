@@ -1,51 +1,31 @@
 import { redirect } from "next/navigation"
-import { createClient as createAdmin } from "@supabase/supabase-js"
 
-import { createClient } from "@/lib/supabase/server"
-import { hasPerm, type Permission, type Role } from "@/lib/permissions"
+import { query } from "@painel/db"
+import { authProvider, type Profile } from "@painel/auth"
+import { hasPerm, type Permission } from "@/lib/permissions"
 import { getOperacaoBySlug } from "@/lib/queries"
 
-export type Profile = {
-  id: string
-  email: string
-  empresa: string | null
-  role: Role
-  is_admin: boolean
-  base_scope: string
-  operacao_id: string | null
-  principal_operacao_id: string | null
-  active: boolean
-  sidebar_operacoes: string[] | null
-  extra_perms: string[]
-  denied_perms: string[]
-}
+export type { Profile }
 
 /** Usuário autenticado + perfil do banco (server-side). Null se não logado. */
 export async function getSessionProfile(): Promise<{
   email: string
   profile: Profile | null
 } | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const provider = authProvider()
+  const user = await provider.getUser()
   if (!user) return null
 
-  // Lê o perfil com service role (bypassa RLS/grants — só roda no servidor).
-  const admin = createAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
+  // Perfil/permissões vivem no Postgres (app_user), fora do provedor de identidade.
+  const [profile] = await query<Profile>(
+    `select id, email, empresa, role, is_admin, base_scope, operacao_id,
+            principal_operacao_id, active, sidebar_operacoes, extra_perms, denied_perms
+       from app_user
+      where ${provider.profileKey === "email" ? "email = $1" : "id = $1"}`,
+    [provider.profileKey === "email" ? user.email : user.id],
   )
-  const { data: profile } = await admin
-    .from("app_user")
-    .select(
-      "id, email, empresa, role, is_admin, base_scope, operacao_id, principal_operacao_id, active, sidebar_operacoes, extra_perms, denied_perms",
-    )
-    .eq("id", user.id)
-    .single<Profile>()
 
-  return { email: user.email ?? "", profile: profile ?? null }
+  return { email: user.email, profile: profile ?? null }
 }
 
 /** Garante sessão + permissão. Redireciona se faltar. Retorna a sessão. */
@@ -67,7 +47,6 @@ export async function requireOperacaoAccess(slug: string) {
   if (!session.profile) redirect("/dashboard")
   const { profile } = session
   if (profile.is_admin || profile.base_scope === "ALL") return session
-
   const op = await getOperacaoBySlug(slug)
   if (!op || op.id !== profile.operacao_id) redirect("/dashboard")
   return session

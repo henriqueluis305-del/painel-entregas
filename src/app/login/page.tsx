@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Loader2Icon, MailIcon, LockIcon, UserIcon, BriefcaseIcon } from "lucide-react"
 
-import { requestSignup, type SignupResult } from "@/app/login/actions"
-import { createClient } from "@/lib/supabase/client"
+import { requestSignup, signIn, type SignupResult } from "@/app/login/actions"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -31,14 +30,15 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     const email = String(form.get("email") ?? "").trim()
     const password = String(form.get("password") ?? "")
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // Login roda no servidor (server action) — o client não conversa com o
+    // provedor de identidade; trocar Supabase→Cognito não toca nesta tela.
+    const result = await signIn(email, password)
 
-    if (error) {
+    if (!result.ok) {
       setError(
-        /banned/i.test(error.message)
+        result.pending
           ? "Seu cadastro ainda está pendente de aprovação por um administrador."
-          : "E-mail ou senha inválidos.",
+          : result.error,
       )
       setLoading(false)
       return

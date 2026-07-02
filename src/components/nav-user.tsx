@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/components/theme-provider"
 
-import { createClient } from "@/lib/supabase/client"
+import { signOut } from "@/app/login/actions"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -55,8 +55,7 @@ export function NavUser({
   const { theme, setTheme } = useTheme()
 
   async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOut() // server action — o client não fala com o provedor de identidade
     router.push("/login")
     router.refresh()
   }
